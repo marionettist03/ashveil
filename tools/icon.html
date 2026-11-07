@@ -1,0 +1,23 @@
+<!doctype html><html><body>
+<script type="module">
+import { buildArt, ART } from '../src/data/art.js';
+buildArt();
+function make(size, pad) {
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  const x = c.getContext('2d'); x.imageSmoothingEnabled = false;
+  x.fillStyle = '#0b0a0c'; x.fillRect(0, 0, size, size);
+  const g = x.createRadialGradient(size/2, size*0.55, 0, size/2, size*0.55, size*0.5);
+  g.addColorStop(0, 'rgba(255,138,42,0.55)'); g.addColorStop(0.5, 'rgba(255,90,40,0.15)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  x.fillStyle = g; x.fillRect(0, 0, size, size);
+  const bell = ART.props.bell;
+  const s = Math.floor((size * (1 - pad * 2)) / bell.w);
+  const w = bell.w * s, h = bell.h * s;
+  x.drawImage(bell.c, Math.round(size/2 - w/2), Math.round(size/2 - h/2), w, h);
+  // falling ash
+  x.fillStyle = 'rgba(220,214,210,0.7)';
+  const r = (n) => (Math.sin(n * 12.9898) * 43758.5453) % 1;
+  for (let i = 0; i < 18; i++) { const px = Math.abs(r(i)) * size, py = Math.abs(r(i + 50)) * size; x.fillRect(Math.round(px), Math.round(py), Math.max(2, size/96), Math.max(2, size/96)); }
+  return c.toDataURL('image/png');
+}
+window.icons = { i192: make(192, 0.16), i512: make(512, 0.16), m512: make(512, 0.26) };
+</script></body></html>
