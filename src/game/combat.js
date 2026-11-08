@@ -1,5 +1,6 @@
 // Damage resolution between the hero and enemies.
 import { rand, angleTo, angDiff, dist } from '../core/util.js';
+import { G } from '../core/G.js';
 import { mitigation } from './stats.js';
 
 /** Is point (px,py) with radius pr inside an arc centred at (x,y)? */
@@ -31,6 +32,21 @@ export function hitEnemy(S, e, mult, o = {}) {
   if (crit) dmg *= st.critDmg;
   if (o.ult && st.legs.has('emberCrown')) dmg *= 1.35;
   if (e.vulnerable > 0) dmg *= 1.3;
+  // shielded enemies block most damage from the front while their guard is up
+  if (e.def.shield && e.guardUp && !o.area && !o.ult) {
+    const sx = o.fromX ?? p.x, sy = o.fromY ?? p.y;
+    if (Math.abs(angDiff(e.guardAng, angleTo(e.x, e.y, sx, sy))) < 1.15) {
+      dmg *= 0.15;
+      o = { ...o, kb: 0, stun: 0 };
+      if (G.time - (e.lastBlockFx || 0) > 0.35) {
+        e.lastBlockFx = G.time;
+        S.fx.float(e.x, e.y - e.h - 2, 'BLOCK', '#9aa6b2');
+        S.audio.play('smith', { gap: 0.1, vol: 0.6 });
+        S.fx.burst(e.x + Math.cos(e.guardAng) * 6, e.y - 9, 4, { col: ['#ffd166', '#ffffff'], smin: 30, smax: 70, g: 0 });
+      }
+      e.blockedHit = true;
+    }
+  }
   dmg *= mitigation(e.armor) * 0.85 + 0.15;
   dmg = Math.max(1, Math.round(dmg));
   e.hp -= dmg;
@@ -65,9 +81,9 @@ export function hurtPlayer(S, raw, src, o = {}) {
   if (p.dead || p.iframes > 0 || S.godMode) return 0;
   let dmg = raw * mitigation(p.stats.def);
   if (p.bulwark > 0) {
-    dmg *= 0.5;
+    dmg *= 0.65;
     if (src && !src.dead && src.hp !== undefined) {
-      const refl = Math.round(raw * 0.4);
+      const refl = Math.round(raw * 0.3);
       if (refl > 0) hitEnemy(S, src, 0, { flat: refl, noCrit: true, quiet: true });
     }
   }

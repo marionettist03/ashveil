@@ -6,10 +6,9 @@ import { loadSave, writeSave, newHeroState } from './core/save.js';
 import { drawText } from './core/font.js';
 import { buildArt } from './data/art.js';
 import { TitleScene } from './scenes/title.js';
-import { CampScene } from './scenes/camp.js';
-import { StageScene } from './game/stage.js';
+import { CampScene, makeZone } from './scenes/camp.js';
 import { xpToNext } from './data/heroes.js';
-import { makeItem } from './data/items.js';
+import { makeItem, itemScore } from './data/items.js';
 
 const canvas = document.getElementById('game');
 G.canvas = canvas;
@@ -49,6 +48,7 @@ resize();
 
 // ---------------------------------------------------------------- systems
 G.save = loadSave();
+G.save.settings.joy = G.save.settings.joy || 'fixed';
 G.audio = new Audio();
 G.audio.sfxOn = G.save.settings.sfx;
 G.audio.musicOn = G.save.settings.music;
@@ -84,6 +84,7 @@ const params = new URLSearchParams(location.search);
 G.debug = params.has('debug');
 G.autoplay = params.has('autoplay') ? (params.get('autoplay') || true) : false;
 window.__G = G;
+if (G.debug) window.__dbg = { itemScore, makeItem };
 
 function bootScene() {
   const heroId = params.get('hero');
@@ -100,10 +101,12 @@ function bootScene() {
       const r = +params.get('gear') || 2;
       for (const slot of ['weapon', 'helm', 'armor', 'boots', 'charm']) hs.eq[slot] = makeItem({ heroId: heroId, ilvl: hs.level, rarity: r, slot });
     }
+    if (params.has('seen')) { G.save.lore = { almanac: 1, waymarker: 1, rite: 1, watchlog: 1 }; for (const k of ['c1', 'c2', 'c3']) hs.seen[k] = true; }
+    if (params.has('cleared')) for (let i = 0; i < +params.get('cleared'); i++) hs.cleared[['1-1', '1-2', '1-3', '1-4'][i]] = { stars: 1 };
     if (params.has('seen')) for (const k of ['intro', 's1_start', 's1_mid', 's1_end', 's2_start', 's2_boss', 's2_end', 's3_start', 's3_mid', 's3_end', 's4_start', 's4_boss', 's4_phase', 's4_end']) hs.seen[k] = true;
     G.save.last = heroId;
     if (params.has('stage')) {
-      const st = new StageScene(hs, +params.get('stage'), params.has('nm'), () => G.setScene(new CampScene(hs, {})));
+      const st = makeZone(hs, +params.get('stage'), params.has('nm'), params.get('entry') || 'west');
       if (params.has('god')) st.godMode = true;
       if (params.has('ember')) st.player.ember = 100;
       return st;

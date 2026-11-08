@@ -7,7 +7,7 @@ const c = document.getElementById('c'); const x = c.getContext('2d'); x.imageSmo
 let px=10, py=10, rowH=0; const S=5;
 function put(spr,label){ const w=spr.w*S,h=spr.h*S; if(px+w>1390){px=10;py+=rowH+20;rowH=0;} x.drawImage(spr.c,px,py,w,h); x.fillStyle='#fff'; x.font='10px monospace'; x.fillText(label,px,py+h+10); px+=w+12; rowH=Math.max(rowH,h+10); }
 for(const id in ART.heroes){ const f=ART.heroes[id]; put(f.idle[0],id); put(f.walk[1],'w1'); put(f.walk[3],'w3'); put(f.atk[0],'atk'); }
-put(ART.maud.idle[0],'maud');
+put(ART.maud.idle[0],'maud'); put(ART.ansel.idle[0],'ansel');
 for(const id in ART.enemies){ put(ART.enemies[id].idle[0],id); }
 for(const id in ART.weapons){ put(ART.weapons[id],id); }
 for(const id in ART.props){ put(ART.props[id],id); }

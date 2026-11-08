@@ -8,12 +8,31 @@ import { writeSave, SLOTS } from '../core/save.js';
 import { ART } from '../data/art.js';
 import { HEROES, skillPower, xpToNext } from '../data/heroes.js';
 import { STAGES, THEMES } from '../data/stages.js';
-import { STORY, CAMP_FIRST, CHAPTER_END } from '../data/story.js';
+import { STORY, CAMP_FIRST, CHAPTER_END, ANSEL_TALK } from '../data/story.js';
+import { LORE } from '../data/lore.js';
+import { ensureBounties, makeBounty } from '../data/bounties.js';
+import { addXp } from '../game/progress.js';
+import { pick } from '../core/util.js';
 import { SLOT_NAMES, itemLines, itemScore, salvageValue, enhanceCost, MAX_ENH, makeItem } from '../data/items.js';
 import { computeStats } from '../game/stats.js';
 import { StageScene } from '../game/stage.js';
 import { Dialogue } from './dialogue.js';
 import { Backdrop, HeroSelectScene } from './title.js';
+
+/** Start walking a zone. entry: 'west' (from Greyhollow side) or 'east'. */
+export function makeZone(hs, idx, nm, entry = 'west') {
+  return new StageScene(hs, idx, nm, (res) => onZoneExit(hs, res), entry);
+}
+
+export function onZoneExit(hs, res) {
+  writeSave(G.save);
+  if (res.to === 'east' && res.stageIdx + 1 < STAGES.length) { G.setScene(makeZone(hs, res.stageIdx + 1, res.nm, 'west')); return; }
+  if (res.to === 'west' && res.stageIdx > 0) { G.setScene(makeZone(hs, res.stageIdx - 1, res.nm, 'east')); return; }
+  const camp = new CampScene(hs, { chapterDone: res.chapterDone, returned: true });
+  camp.nmSel = !!res.nm && hs.nightmare;
+  camp.stageSel = Math.min(STAGES.length - 1, camp.firstOpen(camp.nmSel));
+  G.setScene(camp);
+}
 
 export class CampScene {
   constructor(hs, opt = {}) {
@@ -30,7 +49,13 @@ export class CampScene {
     this.queue = [];
     if (opt.fresh) this.queue.push(STORY[hs.id].intro);
     if (!hs.seen.camp) { hs.seen.camp = true; this.queue.push(CAMP_FIRST); }
+    // a talk at the hearth after first clearing each of the first three zones
+    for (let n = 1; n <= 3; n++) {
+      const key = 'c' + n;
+      if (hs.cleared[STAGES[n - 1].id] && !hs.seen[key] && STORY[hs.id][key]) { hs.seen[key] = true; this.queue.push(STORY[hs.id][key]); }
+    }
     if (opt.chapterDone) this.queue.push(CHAPTER_END);
+    ensureBounties(hs);
     writeSave(G.save);
     this.nextDialogue();
     if (!this.dialogue && opt.returned) this.tab = null;
@@ -73,6 +98,8 @@ export class CampScene {
       else if (this.tab === 'gear') this.drawGear(ctx);
       else if (this.tab === 'skills') this.drawSkills(ctx);
       else if (this.tab === 'smith') this.drawSmith(ctx);
+      else if (this.tab === 'board') this.drawBoard(ctx);
+      else if (this.tab === 'journal') this.drawJournal(ctx);
       if (G.input.keyPressed('Escape')) this.tab = null;
     }
     if (this.toast) {
@@ -115,6 +142,8 @@ export class CampScene {
     const art = ART.heroes[this.hs.id];
     ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(fx - 52, gy + 1, 24, 3);
     drawSprite(ctx, art.idle[Math.floor(this.t * 2) % 2], fx - 40, gy + 2, { scale: 2 });
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(fx - 92, gy + 1, 22, 3);
+    drawSprite(ctx, ART.ansel.idle[Math.floor(this.t * 1.2) % 2], fx - 80, gy + 2, { scale: 2 });
     const mx = fx + 48;
     // anvil
     ctx.fillStyle = '#2a2830'; ctx.fillRect(mx + 22, gy - 12, 18, 5); ctx.fillRect(mx + 27, gy - 7, 8, 8); ctx.fillRect(mx + 24, gy + 1, 14, 2);
@@ -146,24 +175,38 @@ export class CampScene {
 
   drawMenu(ctx) {
     const R = G.W - G.safeR - 6;
-    const bw = 104, bx = R - bw, y0 = 34;
+    const bw = 108, bx = R - bw, y0 = 31;
+    const hs = this.hs;
+    const ready = (hs.bounties || []).filter((b) => b.have >= b.need).length;
+    const pages = LORE.filter((l) => (G.save.lore || {})[l.id]).length;
     const items = [
-      ['road', 'Ember Road', '#ffe0a0'],
-      ['gear', `Gear${this.hs.inv.length >= 28 ? ' (full!)' : ''}`],
-      ['skills', `Skills${this.hs.sp > 0 ? `  +${this.hs.sp}` : ''}`, this.hs.sp > 0 ? '#ffd24a' : null],
+      ['road', 'Travel the Road', '#ffe0a0'],
+      ['gear', `Gear${hs.inv.length >= 28 ? ' (full!)' : ''}`],
+      ['skills', `Skills${hs.sp > 0 ? `  +${hs.sp}` : ''}`, hs.sp > 0 ? '#ffd24a' : null],
       ['smith', 'Maud the Smith'],
+      ['board', `Bounties${ready ? `  (${ready} done)` : ''}`, ready ? '#ffd24a' : null],
+      ['journal', `Journal  ${pages}/${LORE.length}`],
+      ['talk', 'Sit with Ansel'],
       ['heroes', 'Change hero', COL.dim],
     ];
     items.forEach(([id, label, col], i) => {
-      if (button(ctx, bx, y0 + i * 24, bw, 20, label, { color: col || COL.text })) {
+      if (button(ctx, bx, y0 + i * 22, bw, 19, label, { color: col || COL.text })) {
         if (id === 'heroes') { writeSave(G.save); G.setScene(new HeroSelectScene()); }
+        else if (id === 'talk') this.talk();
         else { this.tab = id; this.sel = null; }
       }
     });
-    const st = computeStats(this.hs);
+    const st = computeStats(hs);
     drawText(ctx, `Power ${st.power}`, G.safeL + 10, 32, { color: COL.bronze, outline: '#000' });
     drawText(ctx, 'Greyhollow Hearth', G.safeL + 10, 43, { color: COL.dim, outline: '#000' });
     if (G.input.keyPressed('Enter')) this.tab = 'road';
+  }
+
+  talk() {
+    const hs = this.hs;
+    const lines = [['ansel', pick(ANSEL_TALK)]];
+    if ((hs.bounties || []).some((b) => b.have >= b.need)) lines.push(['ansel', 'And the board by the door has coin waiting for you. Claim it.']);
+    this.dialogue = new Dialogue(lines, () => { this.dialogue = null; });
   }
 
   closeBtn(ctx, x, y) {
@@ -186,6 +229,11 @@ export class CampScene {
     const hs = this.hs;
     const n = STAGES.length, gap = 6;
     const cw = Math.floor((f.w - 16 - gap * (n - 1)) / n), ch = 100;
+    // the road that joins every zone
+    ctx.fillStyle = '#5a4630';
+    ctx.fillRect(f.x + 4, f.y + 22 + 46, f.w - 8, 3);
+    ctx.fillStyle = '#3a2d20';
+    for (let rx = f.x + 6; rx < f.x + f.w - 6; rx += 6) ctx.fillRect(rx, f.y + 22 + 47, 3, 1);
     STAGES.forEach((s, i) => {
       const x = f.x + 8 + i * (cw + gap), y = f.y + 22;
       const open = this.stageOpen(i, this.nmSel);
@@ -213,7 +261,7 @@ export class CampScene {
     if (hs.nightmare) {
       if (button(ctx, f.x + 8, by, 74, 18, 'Normal', { selected: !this.nmSel })) { this.nmSel = false; this.stageSel = Math.min(this.stageSel, this.firstOpen(false)); }
       if (button(ctx, f.x + 86, by, 84, 18, 'Nightmare', { selected: this.nmSel, color: '#e0453a' })) { this.nmSel = true; this.stageSel = Math.min(this.stageSel, this.firstOpen(true)); }
-    } else drawText(ctx, 'Beat the Bellwarden to unlock Nightmare.', f.x + 10, by + 5, { color: COL.faint });
+    } else drawText(ctx, 'Zones connect: walk east and west between them.', f.x + 10, by + 5, { color: COL.faint });
     const s = STAGES[this.stageSel];
     const canGo = this.stageOpen(this.stageSel, this.nmSel);
     if (button(ctx, f.x + f.w - 110, by, 102, 18, `Enter ${s.id}`, { color: '#ffe0a0', disabled: !canGo }) || (G.input.keyPressed('Enter') && canGo)) this.enterStage(this.stageSel, this.nmSel);
@@ -227,14 +275,7 @@ export class CampScene {
 
   enterStage(i, nm) {
     writeSave(G.save);
-    const hs = this.hs;
-    G.setScene(new StageScene(hs, i, nm, (res) => {
-      writeSave(G.save);
-      const camp = new CampScene(hs, { chapterDone: res.chapterDone, returned: true });
-      camp.stageSel = Math.min(STAGES.length - 1, camp.firstOpen(nm));
-      camp.nmSel = nm;
-      G.setScene(camp);
-    }));
+    G.setScene(makeZone(this.hs, i, nm, 'west'));
   }
 
   // ------------------------------------------------------------ gear
@@ -429,11 +470,74 @@ export class CampScene {
       }
     });
     const y = f.y + 32 + 5 * rh + 6;
-    const price = 20 + hs.level * 3;
-    drawText(ctx, `Healing potions: ${hs.potions}/10`, f.x + 8, y + 5, { color: '#ff8a8a' });
-    if (button(ctx, f.x + 150, y, 120, 16, `Buy potion (${price}g)`, { disabled: hs.gold < price || hs.potions >= 10 })) {
+    const price = 30 + hs.level * 4;
+    drawText(ctx, `Healing potions: ${hs.potions}/5`, f.x + 8, y + 5, { color: '#ff8a8a' });
+    if (button(ctx, f.x + 150, y, 120, 16, `Buy potion (${price}g)`, { disabled: hs.gold < price || hs.potions >= 5 })) {
       hs.gold -= price; hs.potions++; G.audio.play('potion'); writeSave(G.save);
     }
     drawText(ctx, 'Shards come from salvaging gear in your bag.', f.x + 8, y + 22, { color: COL.faint });
   }
+
+  // ------------------------------------------------------------ bounties
+  drawBoard(ctx) {
+    const f = this.frame(ctx, 'Bounty Board');
+    const hs = this.hs;
+    ensureBounties(hs);
+    const rh = Math.floor((f.h - 34) / 3);
+    hs.bounties.forEach((b, i) => {
+      const x = f.x + 8, y = f.y + 20 + i * rh, w = f.w - 16;
+      const done = b.have >= b.need;
+      panel(ctx, x, y, w, rh - 4, { fill: done ? '#22201a' : '#1a1520', edge: done ? '#ffd24a' : '#3a3040' });
+      drawText(ctx, b.text, x + 6, y + 5, { color: done ? '#ffd24a' : COL.text });
+      bar(ctx, x + 6, y + 18, 90, 3, b.have / b.need, done ? '#ffd24a' : COL.ember, '#2a1a10');
+      drawText(ctx, `${Math.min(b.have, b.need)}/${b.need}`, x + 102, y + 15, { color: COL.dim });
+      const rw = b.reward;
+      drawText(ctx, `Reward: ${rw.gold}g, ${rw.shards} shards, ${rw.xp} XP, a Rare+ item`, x + 6, y + 26, { color: COL.dim });
+      if (done) {
+        if (button(ctx, x + w - 66, y + 8, 60, 18, 'Claim', { color: '#ffe0a0' })) this.claimBounty(i);
+      } else if (button(ctx, x + w - 66, y + 8, 60, 18, 'Swap 10g', { disabled: hs.gold < 10, color: COL.dim })) {
+        hs.gold -= 10; hs.bounties[i] = makeBounty(hs); writeSave(G.save);
+      }
+    });
+    drawText(ctx, 'Bounties count anywhere on the road. Enemies return every time you enter a zone.', f.x + 10, f.y + f.h - 12, { color: COL.faint });
+  }
+
+  claimBounty(i) {
+    const hs = this.hs, b = hs.bounties[i], rw = b.reward;
+    hs.gold += rw.gold; hs.shards += rw.shards;
+    const ups = addXp(hs, rw.xp);
+    let msg = `+${rw.gold}g  +${rw.shards} shards  +${rw.xp} XP`;
+    if (rw.item) {
+      const ilvl = STAGES[Math.min(STAGES.length - 1, b.tier)].lvl + 1;
+      const it = makeItem({ heroId: hs.id, ilvl, rarity: Math.random() < 0.25 ? 3 : 2 });
+      if (hs.inv.length < 30) { hs.inv.push(it); msg += `  +${it.name}`; } else { hs.gold += 60; msg += '  (bag full: +60g)'; }
+    }
+    if (ups.length) msg += `  LEVEL ${hs.level}!`;
+    hs.bounties[i] = makeBounty(hs);
+    this.say(msg, '#ffd24a');
+    G.audio.play(ups.length ? 'level' : 'loot');
+    writeSave(G.save);
+  }
+
+  // ------------------------------------------------------------ journal
+  drawJournal(ctx) {
+    const f = this.frame(ctx, 'Journal: lore pages found on the road');
+    const found = G.save.lore || {};
+    const rh = Math.floor((f.h - 26) / LORE.length);
+    LORE.forEach((l, i) => {
+      const x = f.x + 8, y = f.y + 20 + i * rh, w = f.w - 16;
+      const has = !!found[l.id];
+      panel(ctx, x, y, w, rh - 4, { fill: has ? '#1e1a16' : '#110e13' });
+      drawSprite(ctx, ART.icons.page, x + 12, y + rh / 2 + 4, { alpha: has ? 1 : 0.25 });
+      drawText(ctx, has ? l.title : `??? (hidden somewhere in ${l.zone})`, x + 26, y + 6, { color: has ? '#e8dcc0' : COL.faint });
+      if (has) {
+        drawText(ctx, l.lines[0].length > 70 ? l.lines[0].slice(0, 68) + '...' : l.lines[0], x + 26, y + 17, { color: COL.dim });
+        if (G.input.tapIn(x, y, w, rh - 4)) {
+          G.audio.play('ui');
+          this.dialogue = new Dialogue([['narr', l.title.toUpperCase()], ...l.lines.map((t) => ['narr', t])], () => { this.dialogue = null; });
+        }
+      }
+    });
+  }
+
 }

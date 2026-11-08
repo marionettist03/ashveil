@@ -68,15 +68,18 @@ function rollAffix(id, ilvl) {
   return { id, v };
 }
 
-/** Roll a rarity index. luck >= 0 shifts the odds upward. */
-export function rollRarity(luck = 0) {
-  return weighted([
-    [0, Math.max(5, 55 - luck * 25)],
-    [1, 30],
-    [2, 11 + luck * 10],
-    [3, 3.5 + luck * 5],
-    [4, 0.6 + luck * 1.4],
-  ]);
+/**
+ * Roll a rarity index (0 Common .. 4 Legendary).
+ * tier: 0..3 for stages 1-1..1-4 (+2 on Nightmare). Normal enemies never drop Legendary;
+ * Epic starts appearing from the second stage. Elites and bosses roll better.
+ */
+export function rollRarity({ tier = 0, elite = false, boss = false, nm = false } = {}) {
+  const t = tier + (nm ? 2 : 0);
+  let w;
+  if (boss) w = [0, 0, 72 - t * 4, 25 + t * 3, 2.5 + t * 1.5];
+  else if (elite) w = [15, 55, 24 + t * 2, t >= 1 ? 4 + t * 2 : 0, nm ? 1 : 0];
+  else w = [64, 29, 6 + t * 1.5, t >= 1 ? 0.6 + t * 0.6 : 0, nm ? 0.15 : 0];
+  return weighted(w.map((x, i) => [i, Math.max(0, x)]));
 }
 
 export function makeItem({ heroId, ilvl, rarity, slot }) {

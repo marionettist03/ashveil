@@ -7,6 +7,7 @@ export const SPEAKERS = {
   odalys: { name: 'Odalys', col: '#ff9a3c' },
   hale: { name: 'Hale', col: '#9fb46a' },
   maud: { name: 'Maud', col: '#d9a46a' },
+  ansel: { name: 'Brother Ansel', col: '#b8b0c8' },
   stag: { name: 'Old Crown', col: '#ffb347' },
   warden: { name: 'The Bellwarden', col: '#e8b862' },
   voice: { name: '???', col: '#c06bff' },
@@ -22,6 +23,23 @@ const PROLOGUE = [
 
 export const STORY = {
   kes: {
+    c1: [
+      ['maud', 'You found her ribbon? Then she was alive when she passed that fence. Hollowed don\'t stop to snag on things.'],
+      ['ansel', 'The Vane boy. I knew your mother\'s footsteps. You walk like her: like the ground owes you money.'],
+      ['kes', 'Brother Ansel. You rang that bell for forty years. Who\'s ringing it now?'],
+      ['ansel', 'No one in Greyhollow, child. Bells answer bells. Find out what this one is answering.'],
+    ],
+    c2: [
+      ['kes', 'At the end the stag stopped looking at me. It looked at the hill. Like it was sorry.'],
+      ['ansel', 'Old Crown kept the boundary between our wood and what lies past it. With him gone, the north road is open both ways.'],
+      ['maud', 'Then we\'d best make sure only the right things walk it. Give me those blades, Kestrel. They\'re dull.'],
+    ],
+    c3: [
+      ['kes', 'Someone wrote on the crypt wall. Fresh. Something about the dead wearing the living.'],
+      ['ansel', '...The Choir\'s words. A sect of the old chapel. They believed the Star was not a disaster, but a door.'],
+      ['kes', 'And Pip? Why her?'],
+      ['ansel', 'Children hear bells the clearest. I am sorry. Go up to the nave and stop the ringing before it calls her farther.'],
+    ],
     intro: [
       ...PROLOGUE,
       ['kes', 'Pip? ...Pip! Her blanket\'s still warm.'],
@@ -92,6 +110,24 @@ export const STORY = {
   },
 
   brannoc: {
+    c1: [
+      ['maud', 'You fight like a man trying to be forgiven.'],
+      ['brannoc', 'Is it that plain?'],
+      ['ansel', 'Brannoc of the Watch. I would know that tread anywhere. Aldren spoke of you, the night before the Star.'],
+      ['brannoc', 'What did he say?'],
+      ['ansel', 'That you were the only one he trusted to get the townsfolk home. Remember that, when you reach him.'],
+    ],
+    c2: [
+      ['brannoc', 'I remember that stag. The night we fled, he walked beside the carts until dawn.'],
+      ['ansel', 'He guided you home then. You guided him home now. That is a debt paid, not a debt made.'],
+      ['maud', 'Sit. Eat. You\'ll do your captain no good fainting on the stairs.'],
+    ],
+    c3: [
+      ['brannoc', 'The relics are gone from the crypt. Aldren swore they would keep the bell quiet.'],
+      ['ansel', 'Then someone wanted it loud. The Choir took them, I would wager, before the first toll.'],
+      ['brannoc', 'Then this was never his doing.'],
+      ['ansel', 'No. He is only the hand on the rope. Free the hand, and you will learn who holds the other end.'],
+    ],
     intro: [
       ...PROLOGUE,
       ['brannoc', 'That bell. I would know that bell in my grave.'],
@@ -161,6 +197,25 @@ export const STORY = {
   },
 
   odalys: {
+    c1: [
+      ['maud', 'Folk are whispering that the witch is fighting for Greyhollow.'],
+      ['odalys', 'Let them whisper. Whispers are cheaper than gratitude, and they keep longer.'],
+      ['ansel', 'Odalys. Mother Ilse\'s best pupil. I heard you scrubbing the crypt floors every dawn for six years.'],
+      ['odalys', 'And you never once told me why she threw me out.'],
+      ['ansel', 'Because I did not know. I only know she wept that night, and she did not weep easily.'],
+    ],
+    c2: [
+      ['odalys', 'There\'s old ash in that wood, older than the Star. Something burned there long before Lumenhold.'],
+      ['ansel', 'The first chapel stood in the wood, before the hill. It burned in the year the bells were cast.'],
+      ['odalys', 'Bells. More than one.'],
+      ['ansel', '...Go carefully, child. Some doors were shut for good reason.'],
+    ],
+    c3: [
+      ['odalys', 'The words on the crypt wall come from the forbidden rite. Only three people ever held its key.'],
+      ['ansel', 'Myself, the Abbot, and Mother Ilse. The Abbot is seven years dead.'],
+      ['odalys', 'And you are blind, Brother. You could not have written them.'],
+      ['ansel', 'No. Which leaves the one you least want it to be.'],
+    ],
     intro: [
       ...PROLOGUE,
       ['odalys', 'Listen. Under the bell. The ash is singing with it.'],
@@ -227,6 +282,22 @@ export const STORY = {
   },
 
   hale: {
+    c1: [
+      ['maud', 'You smell of pine smoke and wet fur. Sit by the fire before you catch your death.'],
+      ['hale', 'Every track in those fields leads to the wood. All of them. Like water running downhill.'],
+      ['ansel', 'Then the bell has tilted the land itself. Your wood is the slope, girl, and everything is sliding into it.'],
+    ],
+    c2: [
+      ['hale', 'I planted a seed where Old Crown fell.'],
+      ['ansel', 'Your grandmother did the same, when the warden before him died. That is how the wood chooses its keeper.'],
+      ['hale', '...She never told me that.'],
+      ['ansel', 'She told me. Wardens are poor at speaking of themselves. It must run in the family.'],
+    ],
+    c3: [
+      ['hale', 'Everything under that chapel smells wrong. Not death. Something waiting to be born.'],
+      ['ansel', 'The Choir would call it the same. A door. Go up to the nave, Hale, and close it.'],
+      ['maud', 'And come back down after. I\'ve grown used to you tracking mud through my forge.'],
+    ],
     intro: [
       ...PROLOGUE,
       ['hale', 'The Ashwood\'s gone quiet. No crows. No foxes. Nothing.'],
@@ -301,4 +372,16 @@ export const CHAPTER_END = [
   ['narr', 'END OF CHAPTER I'],
   ['narr', 'The Road to Lumenhold is still to come.'],
   ['narr', 'Nightmare difficulty is now open. Stronger enemies, better gear.'],
+];
+
+// Things Brother Ansel says when you sit with him (lore and gentle tips).
+export const ANSEL_TALK = [
+  'A shield guards only the front. A wise hunter walks around a wall instead of through it.',
+  'Elites carry better goods. You can see the spite glowing on them.',
+  'The deeper the road, the sharper the steel. Legendary work comes only from the strongest foes.',
+  'The bounties on the board pay well, if you are willing to walk old roads twice.',
+  'Red on the ground is a warning. Heed it, and roll aside.',
+  'The ash forgets nothing. But it forgives everything, eventually.',
+  'Maud\'s husband forged the hinges on the chapel door. She has not climbed that hill since he died.',
+  'Lumenhold had a thousand lamps. On clear nights I still hear the glass singing in the wind.',
 ];

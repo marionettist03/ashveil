@@ -36,15 +36,15 @@ export class GameMap {
     const defs = this.stage.arenas;
     const organic = this.theme.wallStyle !== 'brick';
     const maxH = Math.max(...defs.map((a) => a.h + Math.abs(a.dy || 0) * 2));
-    const pad = 3, gap = 7;
+    const pad = 3, gap = 7, road = 6;
     this.th = maxH + pad * 2;
-    let x = pad;
+    let x = road;
     for (const a of defs) {
       const y = Math.floor((this.th - a.h) / 2) + (a.dy || 0);
       this.arenas.push({ x, y, w: a.w, h: a.h, def: a, state: 'idle', wave: -1, gateIn: null, gateOut: null });
       x += a.w + gap;
     }
-    this.tw = x - gap + pad;
+    this.tw = x - gap + road;
     this.grid = new Uint8Array(this.tw * this.th).fill(WALL);
 
     // carve arenas
@@ -92,11 +92,14 @@ export class GameMap {
     first.entryY = Math.round(first.y + first.h / 2);
     const last = this.arenas[this.arenas.length - 1];
     last.exitY = Math.round(last.y + last.h / 2);
-    // make sure the spawn and exit spots are open
-    this.carve(first.x + 1, first.entryY - 1, first.x + 3, first.entryY + 1);
-    this.carve(last.x + last.w - 4, last.exitY - 1, last.x + last.w - 2, last.exitY + 1);
-    this.start = { x: (first.x + 2) * T + T / 2, y: first.entryY * T + T / 2 };
-    this.exit = { x: (last.x + last.w - 3) * T + T / 2, y: last.exitY * T + T / 2 };
+    // roads off the west and east edges of the map, gated where they meet the arenas
+    this.carve(0, first.entryY - 1, first.x + 2, first.entryY + 1);
+    this.carve(last.x + last.w - 3, last.exitY - 1, this.tw - 1, last.exitY + 1);
+    first.gateIn = { tiles: [[first.x - 1, first.entryY - 1], [first.x - 1, first.entryY], [first.x - 1, first.entryY + 1]], closed: false, t: 0 };
+    last.gateOut = { tiles: [[last.x + last.w, last.exitY - 1], [last.x + last.w, last.exitY], [last.x + last.w, last.exitY + 1]], closed: false, t: 0 };
+    this.gates.push(first.gateIn, last.gateOut);
+    this.start = { x: T * 2.5, y: first.entryY * T + T / 2 };
+    this.exit = { x: (this.tw - 2.5) * T, y: last.exitY * T + T / 2 };
 
     for (const a of this.arenas) this.decorateArena(a);
   }

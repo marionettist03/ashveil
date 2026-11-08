@@ -15,10 +15,10 @@ export const HEROES = {
     difficulty: 2,
     base: { hp: 88, hpL: 10, atk: 11, atkL: 2.4, def: 2, defL: 0.4, crit: 0.15, critDmg: 1.7, speed: 84, atkRate: 0.19 },
     dodgeCd: 0.7,
-    passive: { name: 'Bloodletter', desc: 'Basic attacks heal you for 4% of the damage they deal.', leech: 0.04 },
+    passive: { name: 'Bloodletter', desc: 'Basic attacks heal you for 2.5% of the damage they deal.', leech: 0.025 },
     skills: [
       { id: 'feather', name: 'Feather Step', cd: 5, unlock: 1, dmg: 1.8, desc: 'Dash forward, cutting every enemy you pass through.' },
-      { id: 'talon', name: 'Talon Strike', cd: 6, unlock: 3, dmg: 3.2, desc: 'Lunge at the nearest enemy and drive both blades in. Always a critical hit.' },
+      { id: 'talon', name: 'Talon Strike', cd: 7, unlock: 3, dmg: 2.8, desc: 'Lunge at the nearest enemy and drive both blades in. Always a critical hit.' },
       { id: 'whirl', name: 'Whirling Ash', cd: 10, unlock: 5, dmg: 0.55, desc: 'Spin for 1.4s, slicing all around you. You can move while spinning.' },
     ],
     ult: { id: 'hundred', name: 'Hundred Cuts', dmg: 0.45, desc: 'Blink 8 times between nearby enemies, three strikes each time. On a lone foe, every strike lands on it. You cannot be hit.' },
@@ -34,11 +34,11 @@ export const HEROES = {
     weapon: 'maul',
     ranged: false,
     difficulty: 1,
-    base: { hp: 160, hpL: 18, atk: 13, atkL: 2.6, def: 6, defL: 0.9, crit: 0.05, critDmg: 1.7, speed: 70, atkRate: 0.42 },
+    base: { hp: 138, hpL: 13, atk: 13, atkL: 2.5, def: 4, defL: 0.5, crit: 0.05, critDmg: 1.7, speed: 68, atkRate: 0.44 },
     dodgeCd: 1.1,
     skills: [
       { id: 'oathbreaker', name: 'Oathbreaker', cd: 6, unlock: 1, dmg: 2.2, desc: 'Leap to the nearest enemy and slam the ground, stunning everything nearby.' },
-      { id: 'bulwark', name: 'Bulwark', cd: 12, unlock: 3, dmg: 0, desc: 'For 4s take half damage and reflect 40% of it. Heals 12% HP.' },
+      { id: 'bulwark', name: 'Bulwark', cd: 12, unlock: 3, dmg: 0, desc: 'For 4s take 35% less damage and reflect 30% of it back. Heals 8% HP.' },
       { id: 'chain', name: 'Chain of Penance', cd: 8, unlock: 5, dmg: 1.5, desc: 'Hurl a chain that drags enemies in a line toward you.' },
     ],
     ult: { id: 'fall', name: 'Fall of Lumenhold', dmg: 2.5, desc: 'Three crushing shockwaves roll out from you.' },
@@ -54,7 +54,7 @@ export const HEROES = {
     weapon: 'staff',
     ranged: true,
     difficulty: 3,
-    base: { hp: 85, hpL: 10, atk: 12, atkL: 2.5, def: 1, defL: 0.4, crit: 0.08, critDmg: 1.6, speed: 74, atkRate: 0.32 },
+    base: { hp: 92, hpL: 10, atk: 12, atkL: 2.5, def: 2, defL: 0.4, crit: 0.08, critDmg: 1.6, speed: 74, atkRate: 0.32 },
     dodgeCd: 0.9,
     skills: [
       { id: 'nova', name: 'Cinder Nova', cd: 6, unlock: 1, dmg: 1.7, desc: 'Burst of fire around you that hurls enemies back.' },
@@ -92,7 +92,7 @@ export function skillPower(skill, rank) {
 }
 
 export function xpToNext(level) {
-  return Math.round(30 * Math.pow(level, 1.6));
+  return Math.round(36 * Math.pow(level, 1.78));
 }
 
 export const MAX_LEVEL = 40;

@@ -171,6 +171,36 @@ const MAUD = {
   ],
 };
 
+// NPC: Brother Ansel, the chapel's old blind bell-ringer (static)
+const ANSEL = {
+  pal: {
+    k: K, r: '#5a5560', R: '#3a3640', s: '#d6b49a', S: '#a8846c', w: '#e0dcd6', W: '#a8a29a',
+    b: '#c8b89a', c: '#6a4a2e', y: '#c08a3a',
+  },
+  rows: [
+    '................',
+    '.....kkkkk......',
+    '....krrrrrk.....',
+    '...krrRrrrrk....',
+    '...krRsssssk....',
+    '...kRbbbbbbk....',
+    '...kRsssssSk....',
+    '....kwwsswwk....',
+    '...kkwwwwwwkk...',
+    '..krrkwwwwkrrk..',
+    '..krRrkwwkrRrkc.',
+    '..ksRrrrrrrRskc.',
+    '..kSkrrrrrrkSkc.',
+    '....krrrrrrk.kc.',
+    '....krryrrrk.kc.',
+    '....kRrrrrRk.kc.',
+    '...kRRrrrrRRkkc.',
+    '...kRRrrrrrRk.c.',
+    '...kkRRkkRRkk.c.',
+    '.....kk..kk...k.',
+  ],
+};
+
 // ---------------------------------------------------------------- weapons (pointing up, pivot at bottom centre)
 const WEAPONS = {
   maul: {
@@ -363,6 +393,34 @@ const ENEMY_ART = {
       '..kk....kk..',
     ],
     legTop: 14, split: 6, mode: 'sway',
+  },
+  ashguard: {
+    pal: {
+      k: K, s: '#948f8a', S: '#625d5b', e: '#ff8a3c', m: '#6d7680', M: '#434a52', c: '#4a3d33', C: '#2e261f',
+      w: '#6a4a2e', W: '#45301c', b: '#8a929a', y: '#ff8a2a',
+    },
+    rows: [
+      '................',
+      '....kkkkkk......',
+      '...kmmmmmMk.....',
+      '..kkmmmmmMkk....',
+      '...kSsesesk.....',
+      '...kSssssSk.....',
+      '....kSkkSk......',
+      '...kccccccbbbk..',
+      '..kcCcccckbwwbk.',
+      '..ksCccccbwwwWbk',
+      '..ksCccccbwyyWbk',
+      '..kSkccccbwyyWbk',
+      '...kkccccbwyWWbk',
+      '....kcCccbwwwWbk',
+      '....kcCccbwwwWbk',
+      '....kcCkkbwwWWbk',
+      '....kssk.kbbbbk.',
+      '....kSSk.kSk....',
+      '....kkkk.kkk....',
+    ],
+    legTop: 16, split: 8, mode: 'legs',
   },
   belltoller: {
     pal: {
@@ -918,6 +976,23 @@ const ICON_ART = {
       '............',
     ],
   },
+  page: {
+    pal: { k: K, w: '#e8dcc0', l: '#8a7a60', o: '#c0602a', O: '#ff8a2a' },
+    rows: [
+      '............',
+      '..kkkkkkk...',
+      '..kwwwwwwk..',
+      '..kwllllwk..',
+      '..kwwwwwwk..',
+      '..kwlllwwk..',
+      '..kwwwwwwk..',
+      '..kwllllwk..',
+      '..kwwwwwok..',
+      '..kwwwwoOk..',
+      '..kkkkkkk...',
+      '............',
+    ],
+  },
   pause: {
     pal: { k: K, w: '#e8e2d8' },
     rows: [
@@ -938,7 +1013,7 @@ const ICON_ART = {
 };
 
 // ---------------------------------------------------------------- build everything
-export const ART = { heroes: {}, enemies: {}, weapons: {}, props: {}, icons: {}, maud: null };
+export const ART = { heroes: {}, enemies: {}, weapons: {}, props: {}, icons: {}, maud: null, ansel: null };
 
 export function buildArt() {
   for (const id in HERO_ART) {
@@ -953,4 +1028,5 @@ export function buildArt() {
   for (const id in PROP_ART) ART.props[id] = makeSprite(PROP_ART[id].rows, PROP_ART[id].pal);
   for (const id in ICON_ART) ART.icons[id] = makeSprite(ICON_ART[id].rows, ICON_ART[id].pal);
   ART.maud = buildFrames(MAUD.rows, MAUD.pal, { legTop: 16, split: 8, mode: 'legs' });
+  ART.ansel = buildFrames(ANSEL.rows, ANSEL.pal, { legTop: 16, split: 8, mode: 'sway' });
 }

@@ -39,5 +39,5 @@ export function computeStats(hs) {
 
 /** Damage reduction from defense (diminishing). */
 export function mitigation(def) {
-  return 100 / (100 + Math.max(0, def) * 4);
+  return 100 / (100 + Math.max(0, def) * 3);
 }

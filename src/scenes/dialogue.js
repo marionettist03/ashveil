@@ -9,6 +9,7 @@ import { SPEAKERS } from '../data/story.js';
 function portraitSprite(who) {
   if (ART.heroes[who]) return ART.heroes[who].idle[0];
   if (who === 'maud') return ART.maud.idle[0];
+  if (who === 'ansel') return ART.ansel.idle[0];
   if (who === 'stag') return ART.enemies.stag.idle[0];
   if (who === 'warden') return ART.enemies.warden.idle[0];
   return null;

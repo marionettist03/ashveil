@@ -10,6 +10,8 @@ import { STAGES, THEMES, NIGHTMARE_BONUS } from '../data/stages.js';
 import { STORY } from '../data/story.js';
 import { xpToNext, MAX_LEVEL } from '../data/heroes.js';
 import { makeItem, rollRarity } from '../data/items.js';
+import { LORE } from '../data/lore.js';
+import { trackBounty } from '../data/bounties.js';
 import { GameMap, T } from './map.js';
 import { Player } from './player.js';
 import { createEnemy, updateEnemy, drawEnemy, drawEnemyOverlay } from './enemy.js';
@@ -19,25 +21,34 @@ import { layout, claimControl, drawControls, drawHud } from './hud.js';
 import { Dialogue } from '../scenes/dialogue.js';
 
 export class StageScene {
-  constructor(hs, stageIdx, nightmare, onExit) {
+  constructor(hs, stageIdx, nightmare, onExit, entry = 'west') {
     this.hs = hs;
     this.stageIdx = stageIdx;
     this.stage = STAGES[stageIdx];
     this.nm = !!nightmare;
     this.onExit = onExit;
+    this.entry = entry;
     this.theme = THEMES[this.stage.theme];
     this.map = new GameMap(this.stage, this.theme, (Date.now() & 0xffff) + stageIdx * 7919);
     this.audio = G.audio;
     this.fx = new FX();
     this.player = new Player(this, hs);
-    this.player.x = this.map.start.x; this.player.y = this.map.start.y;
+    const spot = entry === 'east' ? this.map.exit : this.map.start;
+    this.player.x = spot.x; this.player.y = spot.y;
+    this.player.face = entry === 'east' ? -1 : 1;
     this.enemies = []; this.projs = []; this.zones = []; this.teles = []; this.pickups = [];
     this.afterimages = []; this.pillars = []; this.timers = []; this.dynLights = []; this.flashes = []; this.banners = [];
     this.flakes = [];
     this.cam = { x: this.player.x - G.W / 2, y: this.player.y - G.H / 2 };
     this.time = 0; this.hitstop = 0; this.freeze = false; this.slowmo = 0;
-    this.arenaIdx = -1; this.activeArena = null; this.waveDelay = 0;
-    this.exitOpen = false; this.bossEnemy = null;
+    this.activeArena = null; this.waveDelay = 0;
+    this.bossEnemy = null;
+    this.key = this.stage.id + (this.nm ? 'nm' : '');
+    this.roam = !!hs.cleared[this.key]; // already cleared: gates stay open, enemies still roam
+    this.exitOpen = this.roam;
+    this.lastZone = stageIdx === STAGES.length - 1;
+    this.tier = stageIdx;
+    this.aggro = (this.stage.aggro || 1) * (this.nm ? 1.15 : 1);
     this.levelBase = this.stage.lvl + (this.nm ? NIGHTMARE_BONUS : 0);
     this.stats = { kills: 0, gold: 0, items: 0, xp: 0, deaths: 0, damageTaken: 0, potions: 0, time: 0, best: -1 };
     this.state = 'play';
@@ -46,29 +57,46 @@ export class StageScene {
     this.joy = { active: false, id: null, bx: 0, by: 0, kx: 0, ky: 0 };
     this.held = {};
     this.press = {};
+    this.pressAnim = {};
     this.light = makeCanvas(G.W, G.H);
     this.godMode = false;
     this.bagWarnT = 0;
-    this.endT = 0;
     this.results = null;
+    // the road east out of the last zone is not open yet (Chapter II)
+    if (this.lastZone) { const g = this.map.arenas[this.map.arenas.length - 1].gateOut; g.closed = true; g.permanent = true; }
+    this.placeLorePage();
   }
 
   enter() {
     G.audio.music('stage');
-    this.banner(`${this.stage.id}  ${this.stage.name}`, this.nm ? 'Nightmare' : 'Chapter I', 2.6, true);
+    this.banner(`${this.stage.id}  ${this.stage.name}`, this.nm ? 'Nightmare' : this.roam ? 'Cleared - enemies return each visit' : 'Chapter I', 2.6, true);
+  }
+
+  placeLorePage() {
+    const page = LORE.find((l) => l.zone === this.stage.id);
+    G.save.lore = G.save.lore || {};
+    if (!page || G.save.lore[page.id] || G.autoplay) return;
+    const arenas = this.map.arenas.filter((a) => !a.def.boss);
+    const a = arenas[Math.min(arenas.length - 1, 1 + Math.floor(Math.random() * (arenas.length - 1)))];
+    const spot = this.map.randomSpot(a, -999, -999, 0);
+    this.pickups.push({ kind: 'page', page, x: spot.x, y: spot.y, vx: 0, vy: 0, z: 0, vz: 0, t: 1 });
   }
 
   // ------------------------------------------------------------ input claiming
   claimPointer(p) {
     if (this.state !== 'play' || this.dialogue) return null;
-    const role = claimControl(p);
+    const role = claimControl(p, this);
     if (!role) return null;
     if (role === 'joy') {
       if (this.joy.active) return null;
-      this.joy = { active: true, id: p.id, bx: p.x, by: p.y, kx: 0, ky: 0 };
+      const Lo = layout();
+      // fixed: the stick never moves; floating: it appears where you touch and stays there
+      const fixed = (G.save.settings.joy || 'fixed') === 'fixed';
+      this.joy = { active: true, id: p.id, bx: fixed ? Lo.joyHome.x : p.x, by: fixed ? Lo.joyHome.y : p.y, kx: 0, ky: 0 };
       return 'joy';
     }
     this.press[role] = true;
+    this.pressAnim[role] = 0.15;
     return role;
   }
   releasePointer(p) {
@@ -82,17 +110,11 @@ export class StageScene {
     for (const p of inp.pointers.values()) {
       if (!p.role) continue;
       if (p.role === 'joy' && this.joy.id === p.id) {
-        let dx = p.x - this.joy.bx, dy = p.y - this.joy.by;
+        const dx = p.x - this.joy.bx, dy = p.y - this.joy.by;
         const d = Math.hypot(dx, dy);
-        if (d > Lo.joyR) {
-          // let the base trail the thumb so it never feels stuck
-          const over = d - Lo.joyR;
-          this.joy.bx += (dx / d) * over; this.joy.by += (dy / d) * over;
-          dx = p.x - this.joy.bx; dy = p.y - this.joy.by;
-        }
-        this.joy.kx = dx; this.joy.ky = dy;
-        const dd = Math.hypot(dx, dy);
-        if (dd > 3) { mx = dx / Lo.joyR; my = dy / Lo.joyR; }
+        const k = d > Lo.joyR ? Lo.joyR / d : 1;
+        this.joy.kx = dx * k; this.joy.ky = dy * k;
+        if (d > 3) { const m = Math.min(1, d / Lo.joyR); mx = (dx / d) * m; my = (dy / d) * m; }
       } else this.held[p.role] = true;
     }
     if (!this.joy.active) { this.joy.kx = 0; this.joy.ky = 0; }
@@ -119,13 +141,15 @@ export class StageScene {
     const p = this.player;
     const t = this.findTarget(p.x, p.y, 400, false);
     let tx, ty;
+    const pending = this.map.arenas.find((a) => a.state !== 'clear');
+    const page = this.pickups.find((k) => k.kind === 'page');
     if (t) { tx = t.x; ty = t.y; }
-    else if (this.exitOpen) { tx = this.map.exit.x; ty = this.map.exit.y; }
-    else {
-      const next = this.map.arenas[Math.min(this.map.arenas.length - 1, this.arenaIdx + 1)];
-      const a = this.activeArena && this.activeArena.state !== 'clear' ? this.activeArena : next;
-      tx = (a.x + a.w / 2) * T; ty = (a.exitY ?? a.entryY) * T + 8;
-      if (this.activeArena && this.activeArena.state === 'clear' && this.arenaIdx + 1 < this.map.arenas.length) { tx = next.x * T + 40; ty = next.entryY * T + 8; }
+    else if (page && G.autoplay !== 'smart') { tx = page.x; ty = page.y; }
+    else if (pending && !this.roam) { tx = (pending.x + pending.w / 2) * T; ty = (pending.y + pending.h / 2) * T; }
+    else { tx = this.map.tw * T + 40; ty = this.map.exit.y; }
+    if (!t) {
+      const wp = this.botPath(p.x, p.y, Math.min(tx, this.map.tw * T - 8), ty);
+      if (wp) { tx = wp.x; ty = wp.y; }
     }
     const d = dist(p.x, p.y, tx, ty);
     const want = p.hero.ranged && t ? 80 : t ? 16 : 4;
@@ -154,6 +178,38 @@ export class StageScene {
         c.mx = Math.cos(a); c.my = Math.sin(a); c.dodge = true; c.attack = false;
       }
     }
+  }
+
+  /** Next waypoint on a tile path toward (tx,ty), recomputed a few times a second (test bot only). */
+  botPath(x, y, tx, ty) {
+    const m = this.map, W = m.tw, H = m.th;
+    const sx = Math.floor(x / T), sy = Math.floor(y / T), gx = Math.max(0, Math.min(W - 1, Math.floor(tx / T))), gy = Math.max(0, Math.min(H - 1, Math.floor(ty / T)));
+    const c = this.botCache;
+    if (c && c.gx === gx && c.gy === gy && this.time - c.t < 0.4) return c.wp;
+    const prev = new Int32Array(W * H).fill(-1);
+    const q = [sy * W + sx]; prev[sy * W + sx] = sy * W + sx;
+    let found = -1;
+    for (let qi = 0; qi < q.length; qi++) {
+      const cur = q[qi], cx = cur % W, cy = (cur - cx) / W;
+      if (cx === gx && cy === gy) { found = cur; break; }
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = cx + dx, ny = cy + dy;
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        const ni = ny * W + nx;
+        if (prev[ni] !== -1 || m.solidTile(nx, ny)) continue;
+        prev[ni] = cur; q.push(ni);
+      }
+    }
+    let wp = null;
+    if (found >= 0) {
+      const path = [];
+      for (let n = found; n !== prev[n]; n = prev[n]) path.push(n);
+      path.reverse();
+      const n = path[Math.min(path.length - 1, 2)];
+      if (n !== undefined) wp = { x: (n % W) * T + T / 2, y: Math.floor(n / W) * T + T / 2 };
+    }
+    this.botCache = { gx, gy, t: this.time, wp };
+    return wp;
   }
 
   // ------------------------------------------------------------ helpers used by other modules
@@ -194,6 +250,7 @@ export class StageScene {
 
   spawnEnemy(type, x, y, level, elite = false) {
     const e = createEnemy(type, x, y, Math.max(1, level), elite);
+    e.guardAng = angleTo(x, y, this.player.x, this.player.y);
     this.enemies.push(e);
     if (!e.boss) {
       this.fx.burst(x, y - 4, 10, { col: ['#3a3440', '#5a525a', '#ff8a2a'], smin: 10, smax: 40, up: 30, g: -10 });
@@ -234,15 +291,18 @@ export class StageScene {
     for (let i = 0; i < n; i++) this.pickups.push(this.mkPickup('gold', x, y, { v: Math.round(amount / n) }));
   }
 
-  dropItem(x, y, luck, minRarity = 0) {
-    let r = Math.max(minRarity, rollRarity(luck + (this.nm ? 1 : 0)));
+  dropItem(x, y, src = {}, minRarity = 0) {
+    const r = Math.max(minRarity, rollRarity({ tier: this.tier, elite: !!src.elite, boss: !!src.boss, nm: this.nm }));
     const ilvl = this.levelBase + this.arenaBonus() + randi(0, 1);
     const item = makeItem({ heroId: this.hs.id, ilvl, rarity: r });
     this.pickups.push(this.mkPickup('item', x, y, { item, vz: rand(80, 120) }));
     if (r >= 3) this.audio.play(r === 4 ? 'legend' : 'loot');
   }
 
-  arenaBonus() { return Math.floor(Math.max(0, this.arenaIdx) * 0.6); }
+  arenaBonus() {
+    const i = this.activeArena ? this.map.arenas.indexOf(this.activeArena) : 0;
+    return Math.floor(Math.max(0, i) * 0.5);
+  }
 
   killEnemy(e) {
     if (e.dead) return;
@@ -256,15 +316,17 @@ export class StageScene {
     const lvlMul = 1 + 0.15 * (e.level - 1);
     this.dropGold(e.x, e.y, randi(e.def.gold[0], e.def.gold[1]) * lvlMul * (e.elite ? 3 : 1));
     if (e.boss) {
-      const n = e.type === 'warden' ? 4 : 3;
-      for (let i = 0; i < n; i++) this.dropItem(e.x, e.y, 2.2, i === 0 ? 3 : 2);
+      const n = e.type === 'warden' ? 3 : 2;
+      for (let i = 0; i < n; i++) this.dropItem(e.x, e.y, { boss: true }, 2);
       this.bossDefeated(e);
     } else if (e.elite) {
-      this.dropItem(e.x, e.y, 1, 1);
+      this.dropItem(e.x, e.y, { elite: true }, 1);
       this.hitstop = Math.max(this.hitstop, 0.12);
-    } else if (chance(0.085)) this.dropItem(e.x, e.y, 0);
-    if (chance(0.025)) this.pickups.push(this.mkPickup('potion', e.x, e.y));
+    } else if (chance(0.06)) this.dropItem(e.x, e.y);
+    if (chance(0.02)) this.pickups.push(this.mkPickup('potion', e.x, e.y));
     if (e.elite && e.elite.id === 'burning') this.addZone({ kind: 'efire', x: e.x, y: e.y, r: 26, dur: 3, tick: 0.5, enemy: true, dmg: e.atk * 0.6 });
+    const b = trackBounty(this.hs, { kind: 'kill', enemy: e.type, elite: !!e.elite, boss: !!e.boss });
+    if (b) this.banner('Bounty complete!', `${b.text}. Claim it at the hearth.`, 2.4, false, '#ffd24a');
     this.audio.play('die', { gap: 0.05, vol: 0.7 });
     this.fx.burst(e.x, e.y - e.h / 2, 16, { col: ['#3a3440', '#5a525a', '#8a8288', '#ff8a2a'], smin: 30, smax: 110, up: 30 });
     this.fx.burst(e.x, e.y - e.h / 2, 6, { col: ['#ff8a2a', '#ffd166'], smin: 20, smax: 60, glow: true, up: 40, g: -30 });
@@ -306,8 +368,13 @@ export class StageScene {
     this.later(1.2, () => { this.state = 'dead'; });
   }
 
+  reviveCost() { return Math.round(this.hs.gold * 0.15); }
+
   revive() {
     const p = this.player;
+    const cost = this.reviveCost();
+    this.hs.gold -= cost;
+    if (cost) this.fx.float(p.x, p.y - 30, `-${cost} gold`, COL.gold);
     p.dead = false; p.hp = p.stats.maxHp; p.iframes = 2.5; p.ember = Math.max(p.ember, 50);
     for (const e of this.enemies) if (!e.dead && dist(e.x, e.y, p.x, p.y) < 70) { e.kbx += (e.x - p.x) * 6; e.kby += (e.y - p.y) * 6; }
     this.fx.add({ kind: 'ring', x: p.x, y: p.y - 6, r0: 4, r1: 70, col: '#ffd166', col2: '#fff3b0', thick: 2, dur: 0.6 });
@@ -336,22 +403,26 @@ export class StageScene {
   // ------------------------------------------------------------ arena flow
   updateArenas(dt) {
     const p = this.player;
-    // entering the next arena?
-    const nextIdx = this.arenaIdx + 1;
-    if (nextIdx < this.map.arenas.length && (!this.activeArena || this.activeArena.state === 'clear')) {
-      const a = this.map.arenas[nextIdx];
-      const m = nextIdx === 0 ? 0 : 1.5 * T;
-      if (p.x > a.x * T + m && p.x < (a.x + a.w) * T - m && p.y > a.y * T + 4 && p.y < (a.y + a.h) * T - 4) {
-        this.arenaIdx = nextIdx;
-        this.activeArena = a;
-        a.state = 'active';
-        a.wave = -1;
-        if (a.gateIn) a.gateIn.closed = true;
-        if (a.gateOut) a.gateOut.closed = true;
-        if (nextIdx > 0) this.audio.play('gate');
-        this.waveDelay = 0.7;
-        if (a.def.story) this.story(a.def.story, () => this.onArenaStart(a));
-        else this.onArenaStart(a);
+    // walking into any arena that hasn't been fought this visit starts it
+    if (!this.activeArena || this.activeArena.state === 'clear') {
+      for (const a of this.map.arenas) {
+        if (a.state !== 'idle') continue;
+        const m = 1.5 * T;
+        if (p.x > a.x * T + m && p.x < (a.x + a.w) * T - m && p.y > a.y * T + 4 && p.y < (a.y + a.h) * T - 4) {
+          this.activeArena = a;
+          a.state = 'active';
+          a.wave = -1;
+          const lock = !this.roam || a.def.boss;
+          if (lock) {
+            if (a.gateIn) a.gateIn.closed = true;
+            if (a.gateOut) a.gateOut.closed = true;
+            this.audio.play('gate');
+          }
+          this.waveDelay = 0.6;
+          if (a.def.story) this.story(a.def.story, () => this.onArenaStart(a));
+          else this.onArenaStart(a);
+          break;
+        }
       }
     }
     for (const g of this.map.gates) g.t = clamp(g.t + (g.closed ? dt * 4 : -dt * 3), 0, 1);
@@ -378,26 +449,27 @@ export class StageScene {
     const p = this.player;
     const lvl = this.levelBase + this.arenaBonus();
     const mult = this.nm ? 1.3 : 1;
+    const eliteChance = (this.nm ? 0.06 : 0.02) + this.tier * 0.012;
     for (const [type, count, flag] of wave) {
       const n = flag === 'elite' ? count : Math.round(count * mult);
       for (let i = 0; i < n; i++) {
         const s = this.map.randomSpot(a, p.x, p.y, 70);
-        const elite = flag === 'elite' || (!this.nm ? chance(0.02) : chance(0.06));
+        const elite = flag === 'elite' || chance(eliteChance);
         this.spawnEnemy(type, s.x, s.y, lvl + randi(0, 1), elite);
       }
     }
   }
 
+  openGate(g) { if (g && !g.permanent) g.closed = false; }
+
   clearArena(a) {
     a.state = 'clear';
-    if (a.gateIn) a.gateIn.closed = false;
-    if (a.gateOut) a.gateOut.closed = false;
-    this.audio.play('gate');
-    const last = this.arenaIdx === this.map.arenas.length - 1;
-    if (last) {
-      this.exitOpen = true;
-      this.banner('The way forward is open', 'Walk into the ember gate', 2.5, false, '#ffb347');
-    } else this.banner('Area clear', null, 1.4);
+    const locked = (a.gateIn && a.gateIn.closed) || (a.gateOut && a.gateOut.closed && !a.gateOut.permanent);
+    this.openGate(a.gateIn);
+    this.openGate(a.gateOut);
+    if (locked) this.audio.play('gate');
+    if (this.map.arenas.every((x) => x.state === 'clear')) this.zoneCleared();
+    else this.banner('Area clear', null, 1.4);
   }
 
   startBoss(a) {
@@ -432,40 +504,45 @@ export class StageScene {
     });
     for (const o of this.enemies) if (!o.dead && o !== e) this.killEnemy(o);
     this.teles = []; this.zones = this.zones.filter((z) => !z.enemy); this.projs = this.projs.filter((q) => q.owner === 'p');
-    this.activeArena.state = 'clear';
-    this.later(2.2, () => this.finishStage());
+    const a = this.activeArena;
+    this.later(2.2, () => { if (a && a.state !== 'clear') this.clearArena(a); });
+    G.audio.music('stage');
   }
 
-  finishStage() {
-    if (this.state === 'results' || this.finishing) return;
-    this.finishing = true;
-    const end = () => this.showResults();
-    this.story(this.stage.end, end);
+  /** Every arena in the zone is clear. First time: story + results. Later: open the road. */
+  zoneCleared() {
+    if (this.zoneDone) return;
+    this.zoneDone = true;
+    const b = trackBounty(this.hs, { kind: 'clear', zone: this.stage.id, deaths: this.stats.deaths });
+    if (b) this.banner('Bounty complete!', `${b.text}. Claim it at the hearth.`, 2.4, false, '#ffd24a');
+    if (!this.hs.cleared[this.key]) this.story(this.stage.end, () => this.showResults());
+    else {
+      this.exitOpen = true;
+      this.banner('Zone cleared', this.lastZone ? 'The road west leads home' : 'The road east is open', 2.4, false, '#ffb347');
+      writeSave(G.save);
+    }
   }
 
   showResults() {
     const s = this.stats, hs = this.hs;
     const par = this.stage.par;
-    let stars = 1 + (s.deaths === 0 ? 1 : 0) + (s.time <= par ? 1 : 0);
-    const key = this.stage.id + (this.nm ? 'nm' : '');
-    const prev = hs.cleared[key];
-    const firstClear = !prev;
-    hs.cleared[key] = { stars: Math.max(stars, prev ? prev.stars : 0) };
-    if (this.stage.id === '1-4' && !this.nm && !hs.chapterDone) { hs.chapterDone = true; hs.nightmare = true; this.chapterJustDone = true; }
+    const stars = 1 + (s.deaths === 0 ? 1 : 0) + (s.time <= par ? 1 : 0);
+    const prev = hs.cleared[this.key];
+    hs.cleared[this.key] = { stars: Math.max(stars, prev ? prev.stars : 0) };
+    if (this.lastZone && !this.nm && !hs.chapterDone) { hs.chapterDone = true; hs.nightmare = true; this.chapterJustDone = true; }
     hs.playTime += s.time;
-    // first-clear bonus
-    const bonus = firstClear ? Math.round(30 * (this.stageIdx + 1) * (this.nm ? 3 : 1)) : 0;
+    const bonus = Math.round(40 * (this.stageIdx + 1) * (this.nm ? 3 : 1));
     hs.gold += bonus;
-    hs.potions = Math.max(hs.potions, 3);
     writeSave(G.save);
-    this.results = { stars, firstClear, bonus };
+    this.results = { stars, firstClear: true, bonus };
+    this.exitOpen = true;
     this.state = 'results';
-    G.audio.music('calm');
   }
 
-  leave(toCamp = true) {
+  /** to: 'west' | 'east' | 'camp' */
+  leave(to = 'camp') {
     writeSave(G.save);
-    if (this.onExit) this.onExit({ chapterDone: !!this.chapterJustDone, stageId: this.stage.id });
+    if (this.onExit) this.onExit({ to, chapterDone: !!this.chapterJustDone, stageIdx: this.stageIdx, nm: this.nm });
   }
 
   // ------------------------------------------------------------ main update
@@ -507,11 +584,13 @@ export class StageScene {
     this.updateBanners(dt);
     this.bagWarnT -= dt;
 
-    // exit portal
-    if (this.exitOpen && !this.finishing && dist(p.x, p.y, this.map.exit.x, this.map.exit.y) < 14) {
-      this.audio.play('ult');
-      this.fx.screenFlash(0.5, '#ffb347');
-      this.finishStage();
+    // roads: walk off the west edge to go back, off the east edge to go on
+    for (const k in this.pressAnim) this.pressAnim[k] = Math.max(0, this.pressAnim[k] - dt);
+    if (!p.dead && !this.leaving) {
+      // only a deliberate walk off the edge changes zone (not a dodge roll or a knockback)
+      const walking = !p.dash && !p.leap && this.time > 0.6;
+      if (walking && p.x < T * 0.8 && this.ctl.mx < -0.3) { this.leaving = true; this.leave(this.stageIdx === 0 ? 'camp' : 'west'); return; }
+      if (walking && p.x > (this.map.tw - 0.8) * T && this.ctl.mx > 0.3 && this.exitOpen && !this.lastZone) { this.leaving = true; this.leave('east'); return; }
     }
     this.updateCamera(dt);
     this.updateFlakes(dt);
@@ -571,7 +650,7 @@ export class StageScene {
           if (e.dead || e.spawnT > 0 || q.hit.has(e)) continue;
           if (dist(q.x, q.y, e.x, e.y - Math.min(10, e.h / 2)) < e.r + q.r + 4) {
             q.hit.add(e);
-            hitEnemy(this, e, q.mult, { kb: q.kind === 'arrow' ? 4 : 3, kbAng: Math.atan2(q.vy, q.vx) });
+            hitEnemy(this, e, q.mult, { kb: q.kind === 'arrow' ? 4 : 3, kbAng: Math.atan2(q.vy, q.vx), fromX: q.x - q.vx * 0.2, fromY: q.y - q.vy * 0.2 });
             if (q.kind === 'bolt') this.fx.burst(q.x, q.y, 5, { col: ['#ff8a2a', '#ffd166'], smin: 20, smax: 70, glow: true });
             q.pierce--;
             if (q.pierce < 0) { dead = true; break; }
@@ -604,7 +683,7 @@ export class StageScene {
         if (z.kind === 'shock') {
           for (const e of this.enemies) {
             if (e.dead || z.hit.has(e)) continue;
-            if (Math.abs(dist(e.x, e.y, z.x, z.y) - z.r) < 10 + e.r) { z.hit.add(e); hitEnemy(this, e, z.mult, { kb: 10, ult: z.ult }); }
+            if (Math.abs(dist(e.x, e.y, z.x, z.y) - z.r) < 10 + e.r) { z.hit.add(e); hitEnemy(this, e, z.mult, { kb: 10, ult: z.ult, area: true }); }
           }
           this.hitBreakables(z.x, z.y, z.r);
         } else if (!z.hit.has(p) && !p.dead && p.iframes <= 0) {
@@ -617,16 +696,16 @@ export class StageScene {
       if (z.tickT <= 0) {
         z.tickT = z.tick;
         if (z.kind === 'fireLine') {
-          for (const e of this.enemies) if (!e.dead && inLine(e.x, e.y, e.r, z.x, z.y, z.ang, z.len, z.w)) hitEnemy(this, e, z.mult, { quiet: true });
+          for (const e of this.enemies) if (!e.dead && inLine(e.x, e.y, e.r, z.x, z.y, z.ang, z.len, z.w)) hitEnemy(this, e, z.mult, { quiet: true, area: true });
         } else if (z.kind === 'burn') {
-          for (const e of this.enemies) if (!e.dead && dist(e.x, e.y, z.x, z.y) < z.r + e.r) hitEnemy(this, e, z.mult, { quiet: true, noCrit: true });
+          for (const e of this.enemies) if (!e.dead && dist(e.x, e.y, z.x, z.y) < z.r + e.r) hitEnemy(this, e, z.mult, { quiet: true, noCrit: true, area: true });
         } else if (z.kind === 'snare') {
-          for (const e of this.enemies) if (!e.dead && dist(e.x, e.y, z.x, z.y) < z.r + e.r) { if (!e.boss) e.root = 0.6; hitEnemy(this, e, z.mult, { quiet: true }); }
+          for (const e of this.enemies) if (!e.dead && dist(e.x, e.y, z.x, z.y) < z.r + e.r) { if (!e.boss) e.root = 0.6; hitEnemy(this, e, z.mult, { quiet: true, area: true }); }
         } else if (z.kind === 'rain') {
           const a = rand(0, TAU), r = Math.sqrt(Math.random()) * z.r;
           const x = z.x + Math.cos(a) * r, y = z.y + Math.sin(a) * r;
           this.fx.add({ kind: 'line', x: x + 6, y: y - 30, x2: x, y2: y, col: '#e8e2d0', dur: 0.12 });
-          for (const e of this.enemies) if (!e.dead && dist(e.x, e.y, x, y) < 13 + e.r) hitEnemy(this, e, z.mult, { quiet: true });
+          for (const e of this.enemies) if (!e.dead && dist(e.x, e.y, x, y) < 13 + e.r) hitEnemy(this, e, z.mult, { quiet: true, area: true });
           this.fx.burst(x, y, 2, { col: ['#8a7a6a'], smin: 10, smax: 30 });
           this.audio.play('hit', { gap: 0.12, vol: 0.4 });
         } else if (z.kind === 'efire') {
@@ -671,8 +750,16 @@ export class StageScene {
           hs.gold += k.v; this.stats.gold += k.v;
           this.audio.play('coin', { gap: 0.05 });
           this.fx.float(p.x, p.y - 24, '+' + k.v, COL.gold, false, { life: 0.5, vy: -30 });
+        } else if (k.kind === 'page') {
+          G.save.lore[k.page.id] = true;
+          this.audio.play('loot');
+          writeSave(G.save);
+          this.dialogue = new Dialogue([['narr', k.page.title.toUpperCase()], ...k.page.lines.map((l) => ['narr', l])], () => {
+            this.dialogue = null;
+            this.banner('Lore page found', 'Read it again in the Journal at the hearth', 2.4, false, '#e8dcc0');
+          });
         } else if (k.kind === 'potion') {
-          hs.potions = Math.min(10, hs.potions + 1);
+          hs.potions = Math.min(5, hs.potions + 1);
           this.audio.play('potion', { vol: 0.5 });
           this.fx.float(p.x, p.y - 24, '+1 Potion', '#ff6a6a');
         } else if (k.kind === 'item') {
@@ -738,7 +825,7 @@ export class StageScene {
     list.push({ y: this.player.y, draw: () => this.player.draw(ctx) });
     list.sort((a, b) => a.y - b.y);
     for (const it of list) it.draw();
-    if (this.exitOpen) this.drawExit(ctx);
+    this.drawRoads(ctx);
     this.drawProjs(ctx);
     this.fx.drawVfx(ctx);
     this.fx.drawParts(ctx, this.fx.parts);
@@ -859,6 +946,13 @@ export class StageScene {
       const f = Math.floor(G.time * 8 + k.x) % 4;
       ctx.fillStyle = '#b8861a'; ctx.fillRect(Math.round(k.x - 2), Math.round(y - 4), f === 2 ? 2 : 4, 4);
       ctx.fillStyle = '#ffd24a'; ctx.fillRect(Math.round(k.x - 1), Math.round(y - 4), f === 2 ? 1 : 2, 3);
+    } else if (k.kind === 'page') {
+      const bob = Math.round(Math.sin(G.time * 3) * 2);
+      ctx.globalAlpha = 0.3 + 0.15 * Math.sin(G.time * 4);
+      ctx.fillStyle = '#e8dcc0'; ctx.fillRect(Math.round(k.x - 1), Math.round(y - 40), 3, 36);
+      ctx.globalAlpha = 1;
+      drawSprite(ctx, ART.icons.page, k.x, y + bob, { outline: '#ffd166' });
+      this.lightAt(k.x, y - 6, 24);
     } else if (k.kind === 'potion') {
       drawSprite(ctx, ART.icons.potion, k.x, y + 2);
     } else {
@@ -883,24 +977,26 @@ export class StageScene {
     ctx.fillStyle = '#ff8a2a'; ctx.fillRect(Math.round(pl.x), Math.round(pl.y - h + 4), 1, Math.max(0, h - 8));
   }
 
-  drawExit(ctx) {
-    const { x, y } = this.map.exit;
-    const t = this.time;
-    ctx.fillStyle = '#1a1014';
-    ctx.fillRect(Math.round(x - 9), Math.round(y - 26), 18, 26);
-    ctx.fillStyle = '#ff8a2a';
-    for (let i = 0; i < 26; i++) {
-      const w = 18 - Math.abs(13 - i) * 0.4;
-      ctx.globalAlpha = 0.3 + 0.3 * Math.sin(t * 5 + i * 0.6);
-      ctx.fillRect(Math.round(x - w / 2), Math.round(y - 26 + i), Math.round(w), 1);
+  drawRoads(ctx) {
+    const W = this.map.tw * T;
+    const west = this.stageIdx === 0 ? 'Greyhollow' : STAGES[this.stageIdx - 1].name;
+    const east = this.lastZone ? 'Lumenhold (Chapter II)' : STAGES[this.stageIdx + 1].name;
+    const sign = (x, y, text, dir, open) => {
+      ctx.fillStyle = '#3a2a1a'; ctx.fillRect(Math.round(x), Math.round(y - 22), 2, 22);
+      ctx.fillStyle = open ? '#6a4a2e' : '#3a3036'; ctx.fillRect(Math.round(x - 10), Math.round(y - 24), 22, 7);
+      ctx.fillStyle = open ? '#ffd166' : '#6a5a5a';
+      const ax = Math.round(x + (dir > 0 ? 8 : -8)), ay = Math.round(y - 21);
+      ctx.fillRect(ax - (dir > 0 ? 2 : 0), ay, 3, 1);
+      ctx.fillRect(ax + (dir > 0 ? 0 : 0), ay - 1, 1, 3);
+      if (dist(this.player.x, this.player.y, x, y) < 90) drawText(ctx, (dir < 0 ? '< ' : '') + text + (dir > 0 ? ' >' : ''), x, y - 36, { align: 'center', color: open ? '#ffe0a0' : COL.faint, outline: '#140f17' });
+    };
+    sign(T * 3, this.map.start.y - 10, west, -1, true);
+    sign(W - T * 3, this.map.exit.y - 10, east, 1, this.exitOpen && !this.lastZone);
+    if (this.exitOpen && !this.lastZone) {
+      const x = W - T, y = this.map.exit.y;
+      if (Math.random() < 0.3) this.fx.burst(x + rand(-6, 6), y - rand(0, 20), 1, { col: ['#ffd166', '#ff8a2a'], smin: 5, smax: 15, glow: true, g: -40 });
+      this.lightAt(x, y - 8, 50);
     }
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = '#ffe08a';
-    ctx.fillRect(Math.round(x - 10), Math.round(y - 28), 20, 2);
-    ctx.fillRect(Math.round(x - 10), Math.round(y - 28), 2, 28);
-    ctx.fillRect(Math.round(x + 8), Math.round(y - 28), 2, 28);
-    if (Math.random() < 0.3) this.fx.burst(x + rand(-8, 8), y - rand(0, 20), 1, { col: ['#ffd166', '#ff8a2a'], smin: 5, smax: 15, glow: true, g: -40 });
-    this.lightAt(x, y - 12, 70);
   }
 
   drawProjs(ctx) {
@@ -999,33 +1095,38 @@ export class StageScene {
   // ------------------------------------------------------------ overlays
   drawPause(ctx) {
     shade(ctx, 0.7);
-    const w = 160, h = 128, x = Math.round(G.W / 2 - w / 2), y = Math.round(G.H / 2 - h / 2);
+    const w = 176, h = 156, x = Math.round(G.W / 2 - w / 2), y = Math.round(G.H / 2 - h / 2);
     panel(ctx, x, y, w, h, { edge: COL.bronzeD });
     title(ctx, 'Paused', G.W / 2, y + 8);
     const s = G.save.settings;
-    if (button(ctx, x + 12, y + 32, w - 24, 18, 'Resume')) this.state = 'play';
-    if (button(ctx, x + 12, y + 54, w - 24, 18, `Music: ${s.music ? 'On' : 'Off'}`)) { s.music = !s.music; G.audio.setMusic(s.music); writeSave(G.save); }
-    if (button(ctx, x + 12, y + 76, w - 24, 18, `Sound: ${s.sfx ? 'On' : 'Off'}`)) { s.sfx = !s.sfx; G.audio.sfxOn = s.sfx; writeSave(G.save); }
-    if (button(ctx, x + 12, y + 102, w - 24, 18, 'Leave stage (keep loot)', { color: '#e0a090' })) this.leave();
+    const bw = w - 24;
+    if (button(ctx, x + 12, y + 30, bw, 18, 'Resume')) this.state = 'play';
+    if (button(ctx, x + 12, y + 51, bw, 18, `Joystick: ${(s.joy || 'fixed') === 'fixed' ? 'Fixed' : 'Floating'}`)) { s.joy = (s.joy || 'fixed') === 'fixed' ? 'floating' : 'fixed'; writeSave(G.save); }
+    if (button(ctx, x + 12, y + 72, bw / 2 - 2, 18, `Music ${s.music ? 'On' : 'Off'}`)) { s.music = !s.music; G.audio.setMusic(s.music); writeSave(G.save); }
+    if (button(ctx, x + 14 + bw / 2, y + 72, bw / 2 - 2, 18, `Sound ${s.sfx ? 'On' : 'Off'}`)) { s.sfx = !s.sfx; G.audio.sfxOn = s.sfx; writeSave(G.save); }
+    drawText(ctx, (s.joy || 'fixed') === 'fixed' ? 'Stick stays in the corner.' : 'Stick appears where you touch.', G.W / 2, y + 96, { align: 'center', color: COL.faint });
+    if (button(ctx, x + 12, y + 110, bw, 18, 'Return to Greyhollow (keep loot)', { color: '#e0a090' })) this.leave('camp');
+    drawText(ctx, 'Progress saves automatically.', G.W / 2, y + 136, { align: 'center', color: COL.faint });
     if (G.input.keyPressed('Escape', 'KeyP')) this.state = 'play';
   }
 
   drawDead(ctx) {
     shade(ctx, 0.65);
-    const w = 190, h = 92, x = Math.round(G.W / 2 - w / 2), y = Math.round(G.H / 2 - h / 2);
+    const w = 200, h = 96, x = Math.round(G.W / 2 - w / 2), y = Math.round(G.H / 2 - h / 2);
     panel(ctx, x, y, w, h, { edge: '#6a1a1e' });
     title(ctx, 'You have fallen', G.W / 2, y + 8, '#e0453a');
     drawText(ctx, 'The ash has not claimed you yet.', G.W / 2, y + 30, { align: 'center', color: COL.dim });
-    if (button(ctx, x + 12, y + 46, w - 24, 18, 'Rise again')) this.revive();
-    if (button(ctx, x + 12, y + 68, w - 24, 16, 'Return to camp (keep loot)')) this.leave();
+    const cost = this.reviveCost();
+    if (button(ctx, x + 12, y + 46, w - 24, 18, cost ? `Rise again (-${cost} gold)` : 'Rise again')) this.revive();
+    if (button(ctx, x + 12, y + 70, w - 24, 16, 'Return to Greyhollow (keep loot)')) this.leave('camp');
   }
 
   drawResults(ctx) {
     shade(ctx, 0.72);
     const s = this.stats, r = this.results;
-    const w = 220, h = 160, x = Math.round(G.W / 2 - w / 2), y = Math.round(G.H / 2 - h / 2);
+    const w = 228, h = 168, x = Math.round(G.W / 2 - w / 2), y = Math.round(G.H / 2 - h / 2);
     panel(ctx, x, y, w, h, { edge: COL.bronze });
-    title(ctx, 'Stage Clear', G.W / 2, y + 8, '#ffd24a');
+    title(ctx, 'Zone Cleared', G.W / 2, y + 8, '#ffd24a');
     for (let i = 0; i < 3; i++) drawSprite(ctx, i < r.stars ? ART.icons.star : ART.icons.starOff, G.W / 2 - 18 + i * 18, y + 42, { scale: 1 });
     const rows = [
       ['Time', `${Math.floor(s.time / 60)}:${String(Math.floor(s.time % 60)).padStart(2, '0')}  (par ${Math.floor(this.stage.par / 60)}:${String(this.stage.par % 60).padStart(2, '0')})`],
@@ -1039,7 +1140,14 @@ export class StageScene {
       drawText(ctx, k, x + 14, y + 50 + i * 12, { color: COL.dim });
       drawText(ctx, String(v), x + w - 14, y + 50 + i * 12, { align: 'right', color: COL.text });
     });
-    drawText(ctx, 'Stars: clear / no falls / beat par time', G.W / 2, y + h - 34, { align: 'center', color: COL.faint });
-    if (button(ctx, x + 40, y + h - 22, w - 80, 16, 'Return to camp')) this.leave();
+    drawText(ctx, 'Stars: clear / no falls / beat par time', G.W / 2, y + h - 42, { align: 'center', color: COL.faint });
+    const bw = (w - 32) / 2;
+    if (this.lastZone) {
+      if (button(ctx, x + 40, y + h - 26, w - 80, 18, 'Return to Greyhollow', { color: '#ffe0a0' })) this.leave('camp');
+    } else {
+      if (button(ctx, x + 12, y + h - 26, bw, 18, 'Continue east', { color: '#ffe0a0' })) this.state = 'play';
+      if (button(ctx, x + 20 + bw, y + h - 26, bw, 18, 'Greyhollow')) this.leave('camp');
+    }
   }
+
 }

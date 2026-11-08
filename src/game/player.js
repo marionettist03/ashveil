@@ -29,7 +29,7 @@ export class Player {
     this.dash = null; this.dashCd = 0; this.iframes = 0;
     this.skillCd = [0, 0, 0];
     this.ember = 0;
-    this.potionCd = 0; this.healT = 0; this.healRate = 0;
+    this.potionCd = 0; this.potionCdMax = 8; this.healT = 0; this.healRate = 0;
     this.hurtT = 0; this.dead = false;
     this.walkT = 0; this.moving = false;
     this.bulwark = 0; this.whirl = 0; this.whirlTick = 0; this.whirlMult = 0;
@@ -189,7 +189,7 @@ export class Player {
         this.lock = 0.3; this.atkCd = st.atkRate * 1.5;
         this.later(0.12, () => {
           const px = this.x + Math.cos(aim) * 20, py = this.y + Math.sin(aim) * 20;
-          for (const e of S.enemies) if (!e.dead && dist(e.x, e.y, px, py) < 30 + e.r) hitEnemy(S, e, 2.0, { kb: 10, stun: 0.6 });
+          for (const e of S.enemies) if (!e.dead && dist(e.x, e.y, px, py) < 30 + e.r) hitEnemy(S, e, 2.0, { kb: 10, stun: 0.6, area: true });
           S.hitBreakables(px, py, 30);
           S.fx.add({ kind: 'ring', x: px, y: py, r0: 6, r1: 32, col: '#ffa13d', col2: '#ffe08a', dur: 0.3 });
           S.fx.burst(px, py, 14, { col: ['#6e6460', '#9a8f88', '#ffa13d'], smin: 40, smax: 110, up: 30 });
@@ -286,7 +286,7 @@ export class Player {
       }
       case 'bulwark':
         this.bulwark = 4;
-        this.hp = Math.min(this.stats.maxHp, this.hp + this.stats.maxHp * 0.12);
+        this.hp = Math.min(this.stats.maxHp, this.hp + this.stats.maxHp * 0.08);
         S.fx.add({ kind: 'shield', x: this.x, y: this.y, dur: 4, follow: this });
         S.fx.float(this.x, this.y - 26, 'BULWARK', '#9ad4ff');
         S.audio.play('smith');
@@ -307,7 +307,7 @@ export class Player {
       }
       // ---- Odalys
       case 'nova':
-        for (const e of S.enemies) if (!e.dead && dist(e.x, e.y, this.x, this.y) < 52 + e.r) hitEnemy(S, e, m, { kb: 14 });
+        for (const e of S.enemies) if (!e.dead && dist(e.x, e.y, this.x, this.y) < 52 + e.r) hitEnemy(S, e, m, { kb: 14, area: true });
         S.hitBreakables(this.x, this.y, 52);
         S.fx.add({ kind: 'ring', x: this.x, y: this.y - 4, r0: 6, r1: 54, col: '#ff8a2a', col2: '#ffe08a', thick: 3, dur: 0.35 });
         S.fx.add({ kind: 'disc', x: this.x, y: this.y - 4, r: 50, col: '#ff8a2a', alpha: 0.35, grow: true, dur: 0.3 });
@@ -445,7 +445,7 @@ export class Player {
       this.leap = null; this.z = 0;
       S.map.collide(this);
       const slam = (mult) => {
-        for (const e of S.enemies) if (!e.dead && dist(e.x, e.y, this.x, this.y) < 46 + e.r) hitEnemy(S, e, mult, { kb: 8, stun: 1 });
+        for (const e of S.enemies) if (!e.dead && dist(e.x, e.y, this.x, this.y) < 46 + e.r) hitEnemy(S, e, mult, { kb: 8, stun: 0.7, area: true });
         S.hitBreakables(this.x, this.y, 46);
         S.fx.add({ kind: 'ring', x: this.x, y: this.y, r0: 6, r1: 50, col: '#ffa13d', col2: '#ffe08a', thick: 2, dur: 0.35 });
         S.fx.burst(this.x, this.y, 22, { col: ['#6e6460', '#9a8f88', '#ffa13d'], smin: 50, smax: 140, up: 40 });
@@ -463,7 +463,7 @@ export class Player {
     this.whirlTick -= dt;
     if (this.whirlTick <= 0) {
       this.whirlTick = 0.14;
-      for (const e of S.enemies) if (!e.dead && dist(e.x, e.y, this.x, this.y) < 30 + e.r) hitEnemy(S, e, this.whirlMult, { kb: 2, quiet: true });
+      for (const e of S.enemies) if (!e.dead && dist(e.x, e.y, this.x, this.y) < 30 + e.r) hitEnemy(S, e, this.whirlMult, { kb: 2, quiet: true, area: true });
       S.hitBreakables(this.x, this.y, 30);
       S.audio.play('swing', { gap: 0.1 });
     }
@@ -481,7 +481,7 @@ export class Player {
         if (e.dead || e.spawnT > 0) continue;
         const key = e.id * 10 + i;
         if (o.cds.has(key)) continue;
-        if (dist(e.x, e.y - 4, ox, oy) < 8 + e.r) { o.cds.set(key, 0.5); hitEnemy(S, e, o.mult, { kb: 3, quiet: true }); S.audio.play('fire', { gap: 0.15, vol: 0.4 }); }
+        if (dist(e.x, e.y - 4, ox, oy) < 8 + e.r) { o.cds.set(key, 0.5); hitEnemy(S, e, o.mult, { kb: 3, quiet: true, area: true, fromX: ox, fromY: oy }); S.audio.play('fire', { gap: 0.15, vol: 0.4 }); }
       }
     }
   }
@@ -492,9 +492,9 @@ export class Player {
     if (this.hs.potions <= 0) { S.fx.float(this.x, this.y - 26, 'No potions', '#958a9c'); S.audio.play('deny'); this.potionCd = 0.5; return; }
     if (this.hp >= this.stats.maxHp) { S.fx.float(this.x, this.y - 26, 'Full health', '#958a9c'); this.potionCd = 0.5; return; }
     this.hs.potions--;
-    const amt = this.stats.maxHp * 0.4 * (this.stats.legs.has('hearth') ? 1.5 : 1);
-    this.healT = 0.6; this.healRate = amt / 0.6;
-    this.potionCd = 4;
+    const amt = this.stats.maxHp * 0.35 * (this.stats.legs.has('hearth') ? 1.5 : 1);
+    this.healT = 1; this.healRate = amt / 1;
+    this.potionCd = this.potionCdMax;
     S.fx.burst(this.x, this.y - 8, 14, { col: ['#6ad46a', '#b8f0b0'], smin: 10, smax: 40, up: 30, g: -20 });
     S.fx.float(this.x, this.y - 26, '+' + Math.round(amt), '#6ad46a');
     S.audio.play('potion');

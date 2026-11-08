@@ -1,6 +1,6 @@
 // Enemy creation, AI and drawing.
 import { G } from '../core/G.js';
-import { rand, TAU, angleTo, dist, pick, chance, uid } from '../core/util.js';
+import { rand, TAU, angleTo, angDiff, dist, pick, chance, uid } from '../core/util.js';
 import { drawSprite } from '../core/sprite.js';
 import { drawText } from '../core/font.js';
 import { ART } from '../data/art.js';
@@ -20,6 +20,7 @@ export function createEnemy(type, x, y, level, elite = false) {
     kbx: 0, kby: 0, flash: 0, stun: 0, root: 0, vulnerable: 0, spawnT: 0.6,
     dead: false, deathT: 0, walkT: rand(0, 4), xp: def.xp, elite: null, pull: null,
     phase: 1, pattern: null, patIdx: 0, summoned70: false, summoned40: false,
+    guardAng: 0, guardUp: !!def.shield,
   };
   if (elite) {
     const mod = pick(ELITE_MODS);
@@ -161,6 +162,37 @@ const AI = {
     } else if (e.state === 'recover' && e.t <= 0) e.state = 'chase';
   },
 
+  ashguard(S, e, dt, p, d) {
+    // the shield turns slowly, so circling around it opens the guard
+    if (e.state !== 'windup') {
+      const diff = angDiff(e.guardAng, angleTo(e.x, e.y, p.x, p.y));
+      const turn = (e.elite && e.elite.id === 'swift' ? 3 : 2.1) * dt;
+      e.guardAng += Math.max(-turn, Math.min(turn, diff));
+    }
+    const faceGuard = () => { e.face = Math.cos(e.guardAng) >= 0 ? 1 : -1; };
+    if (e.state === 'chase') {
+      if (d > 22 + e.r) stepToward(S, e, p.x, p.y, e.speed, dt);
+      faceGuard();
+      if (d < 30 + e.r && e.cd <= 0) {
+        e.aim = e.guardAng;
+        windup(S, e, 0.6, { shape: 'arc', x: e.x, y: e.y, r: 32, ang: e.aim, arc: 1.7 });
+      }
+    } else if (e.state === 'windup') {
+      faceGuard();
+      if (e.t <= 0) {
+        if (inArc(p.x, p.y, p.r, e.x, e.y, 32, e.aim, 1.7)) hurtPlayer(S, e.atk * 1.1, e, { kb: 10, shake: 4 });
+        e.x += Math.cos(e.aim) * 6; e.y += Math.sin(e.aim) * 6;
+        S.fx.add({ kind: 'ring', x: e.x + Math.cos(e.aim) * 14, y: e.y, r0: 3, r1: 16, col: '#9aa6b2', col2: '#ffffff', dur: 0.2 });
+        S.audio.play('heavy', { vol: 0.6 });
+        S.fx.float(e.x, e.y - e.h - 2, 'OPEN', '#ffd24a');
+        e.state = 'recover'; e.t = 1.1; e.cd = rand(1.6, 2.3);
+      }
+    } else if (e.state === 'recover') {
+      faceGuard();
+      if (e.t <= 0) e.state = 'chase';
+    }
+  },
+
   // ------------------------------------------------------------ boss: Old Crown, the Charcoal Stag
   stag(S, e, dt, p, d) {
     if (e.phase === 1 && e.hp < e.maxHp * 0.5) {
@@ -177,6 +209,7 @@ const AI = {
       if (d < 60) opts.push('sweep', 'sweep');
       if (d > 50) opts.push('charge', 'charge');
       opts.push('stomp');
+      if (d < 36) opts.push('stomp', 'stomp');
       if (e.phase === 2) opts.push('embers', 'charge');
       const pat = pick(opts);
       e.aim = angleTo(e.x, e.y, p.x, p.y);
@@ -255,6 +288,7 @@ const AI = {
       else e.face = p.x >= e.x ? 1 : -1;
       if (e.t > 0) return;
       const opts = ['toll'];
+      if (d < 40) opts.push('slam', 'slam');
       if (d < 70) opts.push('sweep', 'sweep');
       else opts.push('thrust', 'thrust');
       if (e.phase === 2) opts.push('pillars', 'toll');
@@ -271,6 +305,9 @@ const AI = {
         windup(S, e, 0.85, { shape: 'line', x: e.x, y: e.y, ang: e.aim, len: 170, w: 22 });
       } else if (pat === 'pillars') {
         e.state = 'pillars'; e.t = 1.4; e.n = 0;
+      } else if (pat === 'slam') {
+        windup(S, e, 0.75, { shape: 'circle', x: e.x, y: e.y, r: 52 });
+        e.glow = 0.75;
       }
     } else if (e.state === 'windup') {
       if (e.t > 0) return;
@@ -292,6 +329,12 @@ const AI = {
         e.state = 'idle'; e.t = rand(0.7, 1.1);
       } else if (e.pattern === 'thrust') {
         e.state = 'charging'; e.t = 0.55; e.hitDone = false; S.audio.play('dash');
+      } else if (e.pattern === 'slam') {
+        if (dist(p.x, p.y, e.x, e.y) < 52 + p.r) hurtPlayer(S, e.atk * 1.4, e, { kb: 16, shake: 7 });
+        S.fx.add({ kind: 'ring', x: e.x, y: e.y, r0: 8, r1: 56, col: '#e8b862', col2: '#fff3b0', thick: 3, dur: 0.4 });
+        S.fx.burst(e.x, e.y, 24, { col: ['#6e6460', '#e8b862', '#9a8f88'], smin: 50, smax: 150, up: 40 });
+        S.fx.shake(7); S.audio.play('bell', { vol: 0.6 });
+        e.state = 'idle'; e.t = rand(0.8, 1.1);
       }
     } else if (e.state === 'charging') {
       e.x += Math.cos(e.aim) * 300 * dt; e.y += Math.sin(e.aim) * 300 * dt;
@@ -333,6 +376,7 @@ export function updateEnemy(S, e, dt) {
   e.blocked = e.hitWall;
   e.hitWall = false;
   e.root = Math.max(0, e.root - dt);
+  if (e.def.shield) e.guardUp = e.stun <= 0 && e.state !== 'recover';
   // knockback & pulls
   e.x += e.kbx * dt; e.y += e.kby * dt;
   e.kbx *= Math.max(0, 1 - 9 * dt); e.kby *= Math.max(0, 1 - 9 * dt);
@@ -349,7 +393,9 @@ export function updateEnemy(S, e, dt) {
     S.map.collide(e);
     return;
   }
-  e.t -= dt; e.cd -= dt;
+  const ag = S.aggro || 1;
+  e.t -= e.state === 'recover' || e.state === 'idle' ? dt * ag : dt;
+  e.cd -= dt * ag;
   const p = S.player;
   const d = dist(e.x, e.y, p.x, p.y);
   if (p.dead) { e.state = e.boss ? 'idle' : 'chase'; e.t = 1; }
@@ -398,6 +444,13 @@ export function drawEnemy(S, ctx, e) {
     ctx.globalAlpha = 0.5 + 0.5 * Math.sin(G.time * 30);
     drawSprite(ctx, spr, x, y, { flip: e.face < 0, tint: '#ffd166', alpha: 0.35 });
     ctx.globalAlpha = 1;
+  }
+  if (e.def.shield && e.guardUp) {
+    ctx.fillStyle = 'rgba(154,166,178,0.55)';
+    for (let k = -3; k <= 3; k++) {
+      const a = e.guardAng + k * 0.22;
+      ctx.fillRect(Math.round(x + Math.cos(a) * 11), Math.round(y - 6 + Math.sin(a) * 8), 1, 2);
+    }
   }
   if (e.root > 0) {
     ctx.fillStyle = '#62703d';
