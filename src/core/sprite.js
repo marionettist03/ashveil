@@ -116,3 +116,26 @@ export function buildFrames(rows, pal, { legTop, split, mode = 'legs' }) {
     h: H,
   };
 }
+
+/**
+ * Paper-doll frame: stamp parts onto one grid. layers = [[partName, dx, dy], ...] back to front.
+ * Each part is { x, y, rows } in the base sprite's coordinates; ox shifts everything right.
+ */
+export function composeRows(parts, layers, W, H, ox = 0) {
+  const g = Array.from({ length: H }, () => Array(W).fill('.'));
+  for (const [name, dx, dy] of layers) {
+    const p = parts[name];
+    if (!p) throw new Error('unknown sprite part: ' + name);
+    p.rows.forEach((row, i) => {
+      const y = p.y + i + dy;
+      if (y < 0 || y >= H) return;
+      for (let j = 0; j < row.length; j++) {
+        const ch = row[j];
+        if (ch === '.' || ch === ' ') continue;
+        const x = (p.x || 0) + j + dx + ox;
+        if (x >= 0 && x < W) g[y][x] = ch;
+      }
+    });
+  }
+  return g.map((r) => r.join(''));
+}

@@ -144,7 +144,7 @@ export class HeroSelectScene {
       const hs = G.save.heroes[id];
       panel(ctx, x, y0 + (sel ? 0 : 3), cw, ch, { fill: sel ? '#241c2a' : '#17131c', edge: sel ? h.color : '#3a3040' });
       const art = ART.heroes[id];
-      const spr = sel ? art.walk[Math.floor(this.t * 6) % 4] : art.idle[Math.floor(this.t * 2) % 2];
+      const spr = sel ? art.walk[Math.floor(this.t * (art.walk.length > 4 ? 9 : 6)) % art.walk.length] : art.idle[Math.floor(this.t * 2) % art.idle.length];
       ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(x + cw / 2 - 12, y0 + 64, 24, 3);
       drawSprite(ctx, spr, x + cw / 2, y0 + 66 + (sel ? 0 : 3), { scale: 2 });
       drawText(ctx, h.name, x + cw / 2, y0 + 70, { align: 'center', color: sel ? h.color : COL.text });

@@ -119,7 +119,11 @@ Things to know:
   - On a Chromebook running Linux in its built-in container (Crostini), ChromeOS may also need **port forwarding** for port 6767. Look under ChromeOS Settings, in the Linux development environment section. A Chromebook with Ubuntu installed directly does not need this.
   - From outside your home network, a private network tool such as Tailscale is the simple, safe option. Don't open the port on your router.
 - **Offline mode and installing** need HTTPS (or `localhost`). Opened as plain `http://192.168...` on a phone, the game works but needs the connection, and it cannot install as an app.
-  - Putting HTTPS in front of the server fixes this, for example with Tailscale's HTTPS certificates or a reverse proxy.
+  - Putting HTTPS in front of the server fixes this, for example with a reverse proxy on your own domain or Tailscale's HTTPS certificates.
+- **Behind a reverse proxy** on the same machine (nginx, Caddy, a Cloudflare or Tailscale tunnel), every request reaches the server from `127.0.0.1`.
+  - The server then takes the visitor's real address from `CF-Connecting-IP`, `X-Real-IP` or the last `X-Forwarded-For` entry.
+  - It uses that address for the sign-up limit (10 new accounts per hour per visitor) and the log.
+  - Proxy the whole site, including `/api/`, without caching `/api/` responses.
 - **Each address keeps its own local progress.** The GitHub Pages copy, `localhost:6767` and `192.168...:6767` don't share saves by themselves. Cloud save, or a backup file, moves progress between them.
 
 ## Editing the game data

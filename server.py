@@ -38,7 +38,7 @@ from urllib.parse import urlsplit, unquote
 
 ROOT = Path(__file__).resolve().parent
 NAME_RE = re.compile(r"^[A-Za-z0-9_-]{2,20}$")
-MAX_BODY = 2 * 1024 * 1024  # a save is normally well under 100 KB
+MAX_BODY = 1024 * 1024  # a save is normally well under 100 KB
 MAX_TOKENS = 8  # signed-in devices per account
 PBKDF2_ROUNDS = 200_000
 MAX_ACCOUNTS = 500
@@ -124,6 +124,20 @@ class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
+    def client_ip(self):
+        """The visitor's address. Behind a reverse proxy on this machine (nginx, Caddy, a Cloudflare
+        or Tailscale tunnel) every request comes from 127.0.0.1, so trust the address the proxy passes on."""
+        peer = self.client_address[0]
+        if peer in ("127.0.0.1", "::1") or peer.startswith("::ffff:127."):
+            for h in ("CF-Connecting-IP", "X-Real-IP"):
+                v = self.headers.get(h, "").strip()
+                if v:
+                    return v[:64]
+            xff = self.headers.get("X-Forwarded-For", "")
+            if xff.strip():
+                return xff.split(",")[-1].strip()[:64]  # the entry our own proxy added
+        return peer
+
     # ---------------------------------------------------------------- static files
     def send_head(self):
         path = unquote(urlsplit(self.path).path)
@@ -145,7 +159,7 @@ class Handler(SimpleHTTPRequestHandler):
         # keep the log short: API calls and errors only
         msg = fmt % args
         if self.path.startswith("/api/") or " 4" in msg or " 5" in msg:
-            sys.stderr.write("%s %s %s\n" % (time.strftime("%Y-%m-%d %H:%M:%S"), self.client_address[0], msg))
+            sys.stderr.write("%s %s %s\n" % (time.strftime("%Y-%m-%d %H:%M:%S"), self.client_ip(), msg))
 
     # ---------------------------------------------------------------- API plumbing
     def do_GET(self):
@@ -248,7 +262,7 @@ class Handler(SimpleHTTPRequestHandler):
             if create:
                 if user:
                     return self.reply(409, {"error": "That name is taken. Sign in instead, or pick another name."})
-                ip = self.client_address[0]
+                ip = self.client_ip()
                 recent = [x for x in creations.get(ip, []) if t - x < 3600]
                 if len(recent) >= 10 or self.store.count() >= MAX_ACCOUNTS:
                     return self.reply(429, {"error": "Too many new accounts. Try again later."})

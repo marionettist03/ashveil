@@ -429,7 +429,7 @@ export function drawEnemy(S, ctx, e) {
   let spr;
   if (e.state === 'windup' || e.state === 'charging' || e.state === 'lunge') spr = art.atk[0];
   else if (e.state === 'dazed') spr = art.idle[0];
-  else spr = art.walk[Math.floor(e.walkT) % 4];
+  else spr = art.walk[Math.floor(e.walkT) % art.walk.length];
   const shake = e.state === 'windup' && e.t < 0.25 ? (Math.floor(G.time * 40) % 2) : 0;
   const tint = e.flash > 0 ? '#ffffff' : null;
   const warn = e.state === 'windup' && Math.floor(G.time * 12) % 2 === 0;

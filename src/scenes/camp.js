@@ -145,7 +145,7 @@ export class CampScene {
     // hero and Maud
     const art = ART.heroes[this.hs.id];
     ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(fx - 58, gy + 1, 28, 3);
-    drawSprite(ctx, art.idle[Math.floor(this.t * 2) % 2], fx - 44, gy + 2, { scale: 2 });
+    drawSprite(ctx, art.idle[Math.floor(this.t * (art.idle.length > 2 ? 3 : 2)) % art.idle.length], fx - 44, gy + 2, { scale: 2 });
     ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(fx - 114, gy + 1, 28, 3);
     drawSprite(ctx, ART.ansel.idle[Math.floor(this.t * 1.2) % 2], fx - 100, gy + 2, { scale: 2 });
     const mx = fx + 48;

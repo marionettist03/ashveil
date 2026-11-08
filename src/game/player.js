@@ -124,7 +124,9 @@ export class Player {
     S.collideBreakables(this);
     if (this.moving && this.lock <= 0) {
       this.walkT += dt * (sp / 70) * 8;
-      if (Math.floor(this.walkT) % 2 === 0 && Math.floor(this.walkT) !== this._lastStep) { this._lastStep = Math.floor(this.walkT); S.audio.play('step', { gap: 0.2 }); }
+      // a footstep on each foot's contact frame (frames 0 and half-way through the cycle)
+      const n = this.art.walk.length, fi = Math.floor(this.walkT);
+      if ((fi % n === 0 || fi % n === n / 2) && fi !== this._lastStep) { this._lastStep = fi; S.audio.play('step', { gap: 0.2 }); }
     }
   }
 
@@ -142,7 +144,7 @@ export class Player {
     if (d.trail <= 0) {
       d.trail = 0.03;
       S.fx.burst(this.x, this.y - 6, 2, { col: [this.hero.color, '#ffffff'], smin: 5, smax: 20, lmax: 0.3, g: 0 });
-      S.afterimages.push({ x: this.x, y: this.y, face: this.face, t: 0, spr: this.art.atk[0] });
+      S.afterimages.push({ x: this.x, y: this.y, face: this.face, t: 0, spr: (this.art.dash || this.art.atk)[0] });
       if (d.mult === null && this.stats.legs.has('ashTrail')) S.addZone({ kind: 'burn', x: this.x, y: this.y, r: 12, dur: 2, tick: 0.35, mult: 0.25 });
     }
     if (d.hit) {
@@ -424,7 +426,7 @@ export class Player {
     q.i++;
     q.t = 0.09;
     const a = rand(0, TAU);
-    S.afterimages.push({ x: this.x, y: this.y, face: this.face, t: 0, spr: this.art.atk[0] });
+    S.afterimages.push({ x: this.x, y: this.y, face: this.face, t: 0, spr: (this.art.dash || this.art.atk)[0] });
     this.x = e.x + Math.cos(a) * (e.r + 8); this.y = e.y + Math.sin(a) * (e.r + 8);
     S.map.collide(this);
     this.aim = angleTo(this.x, this.y, e.x, e.y); this.face = Math.cos(this.aim) >= 0 ? 1 : -1;
@@ -520,12 +522,24 @@ export class Player {
       ctx.restore();
       return;
     }
-    let spr;
-    if (this.dash || this.atkAnim > 0 || this.leap) spr = this.art.atk[0];
-    else if (this.moving) spr = this.art.walk[Math.floor(this.walkT) % 4];
-    else spr = this.art.idle[Math.floor(G.time * 2) % 2];
+    const A = this.art;
+    // remember how long the current attack animation lasts, to step through its frames
+    if (this.atkAnim > (this._atkSeen || 0) + 1e-6) this.atkAnimMax = this.atkAnim;
+    this._atkSeen = this.atkAnim;
+    let spr, flip = this.face < 0;
+    if (this.dash || this.leap) { const f = A.dash || A.atk; spr = f[Math.floor(G.time * 16) % f.length]; }
+    else if (this.whirl > 0 && A.anim) { // spin: alternate the two slashes and the facing
+      const k = Math.floor(G.time * 18) % 4;
+      spr = (k < 2 ? A.atk : A.atkB)[0];
+      if (k % 2) flip = !flip;
+    } else if (this.atkAnim > 0) {
+      const f = A.atkB && this.combo % 2 === 0 ? A.atkB : A.atk;
+      const k = 1 - this.atkAnim / (this.atkAnimMax || this.atkAnim);
+      spr = f[Math.min(f.length - 1, Math.floor(k * f.length))];
+    } else if (A.hurt && this.hurtT > 0.12) spr = A.hurt[0];
+    else if (this.moving) spr = A.walk[Math.floor(this.walkT) % A.walk.length];
+    else spr = A.idle[Math.floor(G.time * (A.idle.length > 2 ? 3 : 2)) % A.idle.length];
     const blink = this.iframes > 0 && !this.dash && !this.leap && !this.ultSeq && Math.floor(G.time * 20) % 2 === 0;
-    const flip = this.face < 0;
     const y = this.y - z;
     // weapon behind
     this.drawWeapon(ctx, y, true);
@@ -573,6 +587,7 @@ export class Player {
       if (this.atkAnim > 0 || this.target) drawRot(ctx, spr, hx - f * 2 + Math.cos(this.aim) * 3, hy - 1 + Math.sin(this.aim) * 3 + spr.h / 2, this.aim, spr.h / 2);
       else drawSprite(ctx, spr, hx + f * 1, hy + 9, { flip: f < 0 });
     } else if (id === 'kes') {
+      if (this.art.anim) return; // the blades are part of the hand-made frames
       if (behind || this.atkAnim > 0 || this.whirl > 0 || this.dash) return;
       drawRot(ctx, ART.weapons.dagger, hx + f, hy + 5, 0.5 * f, 7);
     }
