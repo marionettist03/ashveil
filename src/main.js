@@ -163,7 +163,10 @@ requestAnimationFrame(frame);
 
 // offline support when served over https (e.g. GitHub Pages)
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  // game data loads before this module runs, so the page may already have finished loading
+  const registerSw = () => navigator.serviceWorker.register('sw.js').catch(() => {});
+  if (document.readyState === 'complete') registerSw();
+  else window.addEventListener('load', registerSw);
 }
 
 export { xpToNext };

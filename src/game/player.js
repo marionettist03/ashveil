@@ -135,8 +135,9 @@ export class Player {
 
   updateDash(dt) {
     const S = this.S, d = this.dash;
-    this.x += d.vx * dt; this.y += d.vy * dt;
-    S.map.collide(this);
+    // move in small steps so a fast dash on a slow frame can't skip through a thin wall
+    const n = Math.max(1, Math.ceil((Math.hypot(d.vx, d.vy) * dt) / 4));
+    for (let i = 0; i < n; i++) { this.x += (d.vx * dt) / n; this.y += (d.vy * dt) / n; S.map.collide(this); }
     d.trail -= dt;
     if (d.trail <= 0) {
       d.trail = 0.03;
