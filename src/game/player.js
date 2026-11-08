@@ -46,8 +46,10 @@ export class Player {
     this.hp = Math.min(this.hp, this.stats.maxHp);
   }
 
-  get handX() { return this.x + this.face * this.art.hand[0]; }
-  get handY() { return this.y + this.art.hand[1]; }
+  // the hand moves with the pose when the hero has hand-made frames
+  get hand() { return this.curHand || this.art.hand; }
+  get handX() { return this.x + this.face * this.hand[0]; }
+  get handY() { return this.y + this.hand[1]; }
 
   later(t, fn) { this.pending.push({ t, fn }); }
 
@@ -540,6 +542,7 @@ export class Player {
     else if (this.moving) spr = A.walk[Math.floor(this.walkT) % A.walk.length];
     else spr = A.idle[Math.floor(G.time * (A.idle.length > 2 ? 3 : 2)) % A.idle.length];
     const blink = this.iframes > 0 && !this.dash && !this.leap && !this.ultSeq && Math.floor(G.time * 20) % 2 === 0;
+    this.curHand = spr.hand || null;
     const y = this.y - z;
     // weapon behind
     this.drawWeapon(ctx, y, true);
@@ -564,7 +567,7 @@ export class Player {
   drawWeapon(ctx, y, behind) {
     const id = this.hero.id;
     const f = this.face;
-    const hx = this.x + f * this.art.hand[0], hy = y + this.art.hand[1];
+    const hx = this.x + f * this.hand[0], hy = y + this.hand[1];
     if (id === 'brannoc') {
       let a;
       if (this.swing) {

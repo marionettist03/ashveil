@@ -413,7 +413,345 @@ function kesFrames() {
   };
 }
 
+// Brannoc (26-wide base, 34-wide canvas). hand = where the maul is gripped in that pose.
+const BRANNOC_PARTS = {
+  head: { x: 0, y: 0, rows: [
+    '..........................',
+    '...........kkkkk',
+    '.........kkssssskk',
+    '........kSsssssssk',
+    '........kSssssxsssk',
+    '........kSsssxssssk',
+    '........kgSsssgggsk',
+    '........kgSssssesSk',
+    '........kgSsssssssk',
+    '........kWwSssswwwwk',
+    '........kWwwwwwwwwwk',
+    '.........kWwwwwwwwk',
+    '..........kWWwwwWk',
+  ] },
+  headHurt: { x: 0, y: 0, rows: [
+    '..........................',
+    '...........kkkkk',
+    '.........kkssssskk',
+    '........kSsssssssk',
+    '........kSssssxsssk',
+    '........kSsssxssssk',
+    '........kgSssggggsk',
+    '........kgSsssSSsSk',
+    '........kgSsssssssk',
+    '........kWwSsSSwwwk',
+    '........kWwwwwwwwwwk',
+    '.........kWwwwwwwwk',
+    '..........kWWwwwWk',
+  ] },
+  torso: { x: 0, y: 13, rows: [
+    '...kknnmkkcccccckkmnnkk',
+    '..knnmmmmkrrrrrrrkmmmmnk',
+    '..knmmmmMkrrryrrrkmmmmMk',
+    '..kmmmmMMkrryyyrrkMmmMMk',
+    '...kMMMkkrrrryrrrkkMMMk',
+    '......kRrrrryrrrrRk',
+    '......kRrrrrrrrrRk',
+    '......kRrrrrrrrrRk',
+    '......kbbbbBbbbbk',
+    '.......kRrrrRrrrRk',
+    '.......kRrrrRrrrRk',
+    '.......kccCckCccCk',
+  ] },
+  // far arm (drawn behind the body)
+  bArmDown: { x: 3, y: 18, rows: ['kcCk', 'kcCk', 'ksSk', 'kSSk', '.kk'] },
+  bArmBack: { x: 2, y: 18, rows: ['.kcCk', 'kcCk', 'ksSk', 'kSSk', '.kk'] },
+  bArmFwd: { x: 5, y: 18, rows: ['kcCk', 'kcCk', 'ksSk', 'kSSk', '.kk'] },
+  // near arm; hand = where the maul is held
+  fArmDown: { x: 17, y: 18, hand: [19, 21], rows: ['.kcCck', 'kccCk', 'ksSSk', 'kSSk', '.kk'] },
+  fArmFwd: { x: 17, y: 18, hand: [21, 20], rows: ['.kcCck', '.kccCkk', '..kcsSSk', '...kSSk', '....kk'] },
+  fArmBack: { x: 15, y: 18, hand: [17, 21], rows: ['...kcCck', '..kccCk', '.ksSSk', '.kSSk', '..kk'] },
+  fArmRaise: { x: 17, y: 13, hand: [20, 15], rows: ['...kk', '..kSSk', '.kSsSk', '.kcCk', 'kccCk', 'kcCck', '.kkk'] },
+  fArmStrike: { x: 17, y: 17, hand: [23, 18], rows: ['.kkkkkk', 'kccCcSSk', '.kkkkSSk', '.....kk'] },
+  fArmOut: { x: 17, y: 15, hand: [20, 16], rows: ['..kk', '.kSSk', '.kSsk', 'kcCk', 'kcCk', 'kcCk', '.kk'] },
+  // legs: whole pairs and single legs (near leg light steel, far leg dark)
+  legsStand: { x: 0, y: 25, rows: [
+    '.......kmmmMk.kmmmMk',
+    '.......knmmMk.knmmMk',
+    '.......kmmMMk.kmmMMk',
+    '.......kMMMMk.kMMMMk',
+    '......kbbbbbk.kbbbbbk',
+    '......kbbbbbbk.kbbbbbbk',
+    '......kkkkkkkk.kkkkkkkk',
+  ] },
+  legsLunge: { x: 0, y: 25, rows: [
+    '.......kmmmmmmmMk',
+    '......kqqQk.kmmmMk',
+    '.....kqqQk...kmmMMk',
+    '....kQQQk.....kMMMMk',
+    '...kddddk.....kbbbbbk',
+    '...kddddk.....kbbbbbbk',
+    '...kkkkkk.....kkkkkkkk',
+  ] },
+  legsCharge: { x: 0, y: 25, rows: [
+    '........kmmmmmmMk',
+    '.....kkqqQk.kmmmMk',
+    '...kkqqQk....kmmMMk',
+    '.kkqQQk.......kMMMMk',
+    'kddddk.......kbbbbbk',
+    'kkkkk........kbbbbbbk',
+    '.............kkkkkkkk',
+  ] },
+  fStraight: { x: 0, y: 25, rows: ['kmmmMk', 'knmmMk', 'kmmMMk', 'kMMMMk', 'kbbbbbk', 'kbbbbbbk', 'kkkkkkkk'] },
+  fFwd: { x: 0, y: 25, rows: ['kmmmMk', '.knmmMk', '.kmmMMk', '..kMMMMk', '..kbbbbbk', '..kbbbbbbk', '..kkkkkkkk'] },
+  fBack: { x: 0, y: 25, rows: ['.kmmmMk', '.knmmMk', 'kmmMMk', 'kMMMMk', 'kbbbbk', 'kbbbbbk', 'kkkkkkk'] },
+  fLift: { x: 0, y: 25, rows: ['kmmmMk', 'knmmMMk', '.kmmMMk', '.kbbbbbk', '.kbbbbbbk', '.kkkkkkk'] },
+  bStraight: { x: 0, y: 25, rows: ['kqqqQk', 'kqqqQk', 'kqqQQk', 'kQQQQk', 'kdddddk', 'kddddddk', 'kkkkkkkk'] },
+  bFwd: { x: 0, y: 25, rows: ['kqqqQk', '.kqqqQk', '.kqqQQk', '..kQQQQk', '..kdddddk', '..kddddddk', '..kkkkkkkk'] },
+  bBack: { x: 0, y: 25, rows: ['.kqqqQk', '.kqqqQk', 'kqqQQk', 'kQQQQk', 'kddddk', 'kdddddk', 'kkkkkkk'] },
+  bLift: { x: 0, y: 25, rows: ['kqqqQk', 'kqqqQQk', '.kqqQQk', '.kdddddk', '.kddddddk', '.kkkkkkk'] },
+};
+function brannocFrames() {
+  const body = (dx, dy, head = 'head', armF = 'fArmDown', armB = 'bArmDown') => [[armB, dx, dy], ['torso', dx, dy], [head, dx, dy], [armF, dx, dy]];
+  const walk = (fl, bl, armF, armB, dy) => [[bl, 7, 0], [fl, 13, 0], ...body(0, dy, 'head', armF, armB)];
+  return {
+    idle: [
+      [['legsStand', 0, 0], ...body(0, 0)],
+      [['legsStand', 0, 0], ...body(0, 0)],
+      [['legsStand', 0, 0], ...body(0, 1)],
+      [['legsStand', 0, 0], ...body(0, 1)],
+    ],
+    walk: [
+      walk('fFwd', 'bBack', 'fArmBack', 'bArmFwd', 0),
+      walk('fStraight', 'bLift', 'fArmDown', 'bArmDown', 1),
+      walk('fStraight', 'bStraight', 'fArmFwd', 'bArmBack', 0),
+      walk('fBack', 'bFwd', 'fArmFwd', 'bArmBack', 0),
+      walk('fLift', 'bStraight', 'fArmDown', 'bArmDown', 1),
+      walk('fStraight', 'bStraight', 'fArmBack', 'bArmFwd', 0),
+    ],
+    atk: [ // heave up, smash down, settle
+      [['legsLunge', 0, 0], ...body(-1, 0, 'head', 'fArmRaise', 'bArmBack')],
+      [['legsLunge', 1, 0], ...body(1, 1, 'head', 'fArmStrike', 'bArmFwd')],
+      [['legsLunge', 1, 0], ...body(1, 1, 'head', 'fArmFwd', 'bArmDown')],
+    ],
+    dash: [ // shoulder charge
+      [['legsCharge', 0, 0], ...body(2, 1, 'head', 'fArmFwd', 'bArmBack')],
+      [['legsCharge', 0, 0], ...body(2, 2, 'head', 'fArmFwd', 'bArmBack')],
+    ],
+    hurt: [
+      [['legsStand', 0, 0], ...body(-1, 0, 'headHurt', 'fArmOut', 'bArmBack')],
+    ],
+  };
+}
+const BRANNOC_PAL = {
+  k: K, s: '#dcae90', S: '#a8775f', e: '#1b1622', x: '#9e5a4e', g: '#8a847e', w: '#d4cec6', W: '#9a938b',
+  m: '#a8b4c0', M: '#626c78', n: '#e2e8ee', r: '#9a2530', R: '#5e141a', y: '#ffb347', c: '#7a8088', C: '#4e535a',
+  b: '#3a2a22', B: '#e2b84f', q: '#7a8592', Q: '#4a525c', d: '#2a1e18',
+};
+
+// Odalys (robe; hand = staff grip)
+const ODALYS_HOOD = [
+  '........................',
+  '..........kk............',
+  '........kkvvk...........',
+  '.......kvvvvvk..........',
+  '......kvvuvvvvkk........',
+  '.....kvvuvvvvvvvk.......',
+  '....kvvuvvvvvvvvvk......',
+  '....kvuvvooooooovk......',
+  '...kVvuvodDddddDdok.....',
+  '...kVvvoddDddddDdok.....',
+  '...kVvvodDssDssDdok.....',
+  '...kVvvodssssddsdok.....',
+  '...kVvvodsssseasdok.....',
+  '...kVvvodsssseesdok.....',
+  '...kVvvodSsssSssdok.....',
+  '...kVvvoddSSSSSddok.....',
+];
+const ODALYS_PARTS = {
+  head: { x: 0, y: 0, rows: ODALYS_HOOD },
+  headHurt: { x: 0, y: 0, rows: ODALYS_HOOD.map((r, i) => (i === 11 ? '...kVvvodssssDDsdok.....' : i === 12 ? '...kVvvodssssddsdok.....' : i === 13 ? '...kVvvodsssssssdok.....' : r)) },
+  // upper robe without the near sleeve
+  torso: { x: 0, y: 16, rows: [
+    '..kVVvvvvooooovvk',
+    '..kVvvuvvvvovvvk',
+    '..kVvuvvvvvovvvk',
+    '..kVvuvvvvvovvvk',
+    '..kVvvvvvvvovvvk',
+    '..kVvgggggggggvk',
+    '..kVvvvvvvvovvvk',
+  ] },
+  // skirt: upper part fixed, hem swings, feet peek out
+  skirt: { x: 0, y: 23, rows: [
+    '.kVVvvvvvvvovvvvvk',
+    '.kVVvvvvvvvovvvvvk',
+    '.kVVvvvvvvvovvvvvk',
+  ] },
+  hemC: { x: 0, y: 26, rows: [
+    'kVVVvvvvvvvovvvvvvk',
+    'kVVVvvvvvvvovvvvvvk',
+    'kVVVVvvvvvvovvvvvvk',
+    'kVVVVVvvvvvovvvvvVk',
+    '.kkVVVkkkkkkkkVVVkk',
+  ] },
+  hemL: { x: 0, y: 26, rows: [
+    'kVVVvvvvvvvovvvvvk',
+    'kVVVvvvvvvovvvvvvk',
+    'kVVVVvvvvvovvvvvk',
+    'kVVVVVvvvvovvvvVk',
+    'kkkVVVkkkkkkkVVkk',
+  ] },
+  hemR: { x: 0, y: 26, rows: [
+    '.kVVvvvvvvvovvvvvvk',
+    '.kVVVvvvvvvvovvvvvvk',
+    '.kVVVVvvvvvvovvvvvvk',
+    '.kVVVVVvvvvvovvvvvVvk',
+    '..kkVVVkkkkkkkkVVVkkk',
+  ] },
+  hemBack: { x: 0, y: 25, rows: [
+    'kkVVvvvvvvvvovvvvvk',
+    'kVVVVvvvvvvovvvvvvk',
+    'kVVVVVvvvvovvvvvvk',
+    'kkVVVVVvvvovvvvvk',
+    '..kkkkVVkkkkkVVkk',
+  ] },
+  feet: { x: 0, y: 31, rows: ['....kook....kook'] },
+  feetA: { x: 0, y: 31, rows: ['...kook.....kook'] },
+  feetB: { x: 0, y: 31, rows: ['.....kook..kook'] },
+  feetC: { x: 0, y: 31, rows: ['....kook.....kook'] },
+  // near sleeve; hand = staff grip
+  slvDown: { x: 13, y: 17, hand: [16, 20], rows: ['kvvk', 'kvuvvk', 'kvuuvk', '.kSsk', '..kk'] },
+  slvFwd: { x: 13, y: 16, hand: [20, 18], rows: ['.kkkk', 'kvvuvkk', '.kvvuvSsk', '..kkkkkk'] },
+  slvUp: { x: 13, y: 14, hand: [16, 15], rows: ['..kk', '.kSsk', '.kvvk', 'kvuvk', 'kvuvk', 'kvvk', '.kk'] },
+  slvOut: { x: 13, y: 16, hand: [17, 17], rows: ['.kk', 'kSsk', 'kvvk', 'kvuvk', 'kvvk', '.kk'] },
+  // far sleeve peeking out behind (cast pose)
+  bSlvBack: { x: 0, y: 17, rows: ['.kVk', 'kVVk', 'kSSk', '.kk'] },
+};
+function odalysFrames() {
+  const body = (dx, dy, slv = 'slvDown', hem = 'hemC', feet = 'feet', head = 'head', extra = []) => [
+    ...extra, [feet, dx, 0], [hem, dx, dy > 0 ? 0 : dy], ['skirt', dx, dy], ['torso', dx, dy], [head, dx, dy], [slv, dx, dy]];
+  return {
+    idle: [
+      body(0, 0, 'slvDown', 'hemC'),
+      body(0, 0, 'slvDown', 'hemR'),
+      body(0, 1, 'slvDown', 'hemC'),
+      body(0, 1, 'slvDown', 'hemL'),
+    ],
+    walk: [
+      body(0, 0, 'slvDown', 'hemR', 'feetA'),
+      body(0, 1, 'slvDown', 'hemC', 'feet'),
+      body(0, 0, 'slvDown', 'hemL', 'feetB'),
+      body(0, 0, 'slvDown', 'hemR', 'feetC'),
+      body(0, 1, 'slvDown', 'hemC', 'feet'),
+      body(0, 0, 'slvDown', 'hemL', 'feetA'),
+    ],
+    atk: [ // thrust the staff forward, robe flares, settle
+      body(1, 0, 'slvFwd', 'hemL', 'feetA', 'head', [['bSlvBack', 1, 0]]),
+      body(1, 0, 'slvFwd', 'hemL', 'feetA', 'head', [['bSlvBack', 1, 0]]),
+      body(0, 0, 'slvOut', 'hemC', 'feet'),
+    ],
+    dash: [
+      body(2, 1, 'slvDown', 'hemBack', 'feetB'),
+      body(2, 1, 'slvDown', 'hemBack', 'feetC'),
+    ],
+    hurt: [
+      body(-1, 0, 'slvUp', 'hemR', 'feet', 'headHurt'),
+    ],
+  };
+}
+const ODALYS_PAL = {
+  k: K, v: '#4e3d66', V: '#30264a', u: '#6e5c8c', o: '#e3762e', d: '#2b2036', D: '#55436b', s: '#f2d6c8', S: '#c9a090',
+  e: '#1b1622', a: '#ffb43c', g: '#d7a845', f: '#e3762e',
+};
+
+// Hale (shares Kes's leg shapes; hand = bow grip)
+const LEG_PARTS = ['legsStand', 'legsLunge', 'legsDash', 'fStraight', 'fFwd', 'fBack', 'fKick', 'fBent', 'bStraight', 'bFwd', 'bBack', 'bKick', 'bBent'];
+const pick = (o, keys) => Object.fromEntries(keys.map((k) => [k, o[k]]));
+const HALE_HEAD = [
+  '........................',
+  '........................',
+  '........kkkkkk',
+  '......kkggnnggkk',
+  '.....kgggnngggggk',
+  '....kgggnngggggggk',
+  '...kGggnggggggggggk',
+  '...kGggggggaaaaaagggk',
+  '..kGGggaAsssaasssagk',
+  '..kGGgaAsssssssssgk',
+  '..kGGgaAsssssssAAsk',
+  '..kGGgaAssssssseisk',
+  '..kGGgaAsssssssessk',
+  '..kGGgAASsssssssSk',
+  '...kGgAkSSssssssk',
+  '...kGgAAkkSSSSkk',
+];
+const HALE_PARTS = {
+  ...pick(KES_PARTS, LEG_PARTS),
+  head: { x: 0, y: 0, rows: HALE_HEAD },
+  headHurt: { x: 0, y: 0, rows: HALE_HEAD.map((r, i) => (i === 10 ? '..kGGgaAsssssAAssk' : i === 11 ? '..kGGgaAssssssseesk' : i === 12 ? '..kGGgaAsssssssssk' : r)) },
+  // braid hangs behind; swings out when running
+  braid: { x: 0, y: 16, rows: ['..kAAk', '..kAAk', '...kAk', '...kAk', '....kk'] },
+  braidFly: { x: 0, y: 15, rows: ['....kk', '..kkAAk', '.kAAkk', 'kAAk', 'kk'] },
+  torso: { x: 0, y: 16, rows: [
+    '.....kGgggnnnggggggk',
+    '.....kGGgggggggggGGk',
+    '......kkGGllLlllllGkk',
+    '......kllllLlcclllk',
+    '......kllllLccllllk',
+    '......kllLllcllllk',
+    '......kbbbbbbBbbbk',
+    '......kgggggGgggggk',
+    '......kgGgggkgggGgk',
+  ] },
+  // near arm; hand = bow grip
+  armDown: { x: 17, y: 19, hand: [18, 22], rows: ['kggk', 'kgLLk', 'kssk', 'kssk', '.kk'] },
+  armSwingF: { x: 17, y: 19, hand: [20, 21], rows: ['kggk', 'kgLLkk', '.kkssk', '...kk'] },
+  armSwingB: { x: 14, y: 19, hand: [15, 22], rows: ['..kggk', '.kgLLk', '.kssk', '.kssk', '..kk'] },
+  // drawing hand pulled to the cheek, then snapped back after the release
+  armDraw: { x: 13, y: 15, rows: ['..kkk', '.kssk', 'kssLk', 'kgLLk', 'kggk', '.kk'] },
+  armRelease: { x: 9, y: 15, rows: ['kkk', 'kssk', 'kssLkk', '.kgLLgk', '..kkggk', '....kk'] },
+  armOut: { x: 17, y: 16, rows: ['.kk', 'kssk', 'kssk', 'kLLk', 'kggk', '.kk'] },
+  // far arm holding the bow out in front (drawn behind the body, sticks out on the right)
+  bowArm: { x: 16, y: 18, hand: [23, 19], rows: ['.kkkkkkk', 'kgggLLssk', '.kkkkkkkk'] },
+};
+function haleFrames() {
+  const body = (dx, dy, head = 'head', arm = 'armDown', braid = 'braid', hdx = 0) => [[braid, dx, dy], ['torso', dx, dy], [head, dx + hdx, dy], [arm, dx, dy]];
+  const run = (fl, bl, arm, braid, dy) => [[bl, 8, 0], [fl, 12, 0], ...body(1, dy, 'head', arm, braid, 1)];
+  return {
+    idle: [
+      [['legsStand', 0, 0], ...body(0, 0)],
+      [['legsStand', 0, 0], ...body(0, 0)],
+      [['legsStand', 0, 0], ...body(0, 1)],
+      [['legsStand', 0, 0], ...body(0, 1)],
+    ],
+    walk: [
+      run('fFwd', 'bBack', 'armSwingB', 'braidFly', 0),
+      run('fStraight', 'bKick', 'armDown', 'braid', 1),
+      run('fStraight', 'bBent', 'armSwingF', 'braidFly', -1),
+      run('fBack', 'bFwd', 'armSwingF', 'braidFly', 0),
+      run('fKick', 'bStraight', 'armDown', 'braid', 1),
+      run('fBent', 'bStraight', 'armSwingB', 'braidFly', -1),
+    ],
+    atk: [ // loose: bow out front, string at the cheek, release
+      [['bowArm', 0, 0], ['legsLunge', 0, 0], ...body(0, 1, 'head', 'armDraw', 'braid')],
+      [['bowArm', 0, 0], ['legsLunge', 0, 0], ...body(0, 1, 'head', 'armRelease', 'braidFly')],
+      [['bowArm', 0, 0], ['legsLunge', 0, 0], ...body(0, 1, 'head', 'armDraw', 'braid')],
+    ],
+    dash: [ // low tumble
+      [['legsDash', 0, 0], ...body(1, 2, 'head', 'armSwingB', 'braidFly', 1)],
+      [['legsDash', 0, 0], ...body(1, 3, 'head', 'armSwingB', 'braidFly', 1)],
+    ],
+    hurt: [
+      [['legsStand', 0, 0], ...body(-1, 0, 'headHurt', 'armOut', 'braidFly')],
+    ],
+  };
+}
+const HALE_PAL = {
+  k: K, g: '#5f6e3a', G: '#3c4626', n: '#869a58', a: '#b8602e', A: '#7a3a1d', s: '#efc4a2', S: '#c48e74', e: '#1b1622', i: '#7cc45a',
+  l: '#80593a', L: '#553a24', c: '#3a2a20', b: '#2a2022', B: '#e2b84f', p: '#4d4438', P: '#332d25',
+  o: '#80593a', O: '#553a24', q: '#3a332a', Q: '#2a241e', r: '#5e4128', R: '#3e2a18', w: '#8b5a34',
+};
+
 const HERO_ANIM = {
+  brannoc: { w: 34, h: 32, ox: 4, pal: BRANNOC_PAL, parts: BRANNOC_PARTS, frames: brannocFrames() },
+  odalys: { w: 32, h: 32, ox: 4, pal: ODALYS_PAL, parts: ODALYS_PARTS, frames: odalysFrames() },
+  hale: { w: 32, h: 32, ox: 4, pal: HALE_PAL, parts: HALE_PARTS, frames: haleFrames() },
   kes: { w: 32, h: 32, ox: 4, pal: {
   k: K, h: '#ece8e4', H: '#bdb6c2', G: '#7f7790', s: '#f0c4a4', S: '#c48e74', e: '#1b1622', i: '#3fd0bc', w: '#ffffff',
   t: '#35b8a8', T: '#1f7d73', u: '#7ae6d4', j: '#71523c', J: '#46322a', l: '#94704f', b: '#241b1e', B: '#f0c45a',
@@ -1328,7 +1666,17 @@ export function buildArt() {
     if (A) {
       // hand-made frames: idle, walk, atk, atkB, dash, hurt
       const set = { hand: d.hand, anim: true, w: A.w, h: A.h };
-      for (const [name, list] of Object.entries(A.frames)) set[name] = list.map((layers) => makeSprite(composeRows(A.parts, layers, A.w, A.h, A.ox), A.pal));
+      for (const [name, list] of Object.entries(A.frames)) {
+        set[name] = list.map((layers) => {
+          const spr = makeSprite(composeRows(A.parts, layers, A.w, A.h, A.ox), A.pal);
+          // where the weapon is held in this pose, relative to the feet (bottom centre)
+          for (const [part, dx, dy] of layers) {
+            const h = A.parts[part].hand;
+            if (h) spr.hand = [h[0] + dx + A.ox - A.w / 2, h[1] + dy - A.h];
+          }
+          return spr;
+        });
+      }
       ART.heroes[id] = set;
     } else ART.heroes[id] = { ...buildFrames(d.rows, d.pal, d), hand: d.hand };
   }
