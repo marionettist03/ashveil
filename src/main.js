@@ -2,7 +2,8 @@
 import { G } from './core/G.js';
 import { Input } from './core/input.js';
 import { Audio } from './core/audio.js';
-import { loadSave, writeSave, newHeroState } from './core/save.js';
+import { loadSave, writeSave, newHeroState, saveHooks } from './core/save.js';
+import { Cloud } from './core/cloud.js';
 import { drawText } from './core/font.js';
 import { buildArt } from './data/art.js';
 import { TitleScene } from './scenes/title.js';
@@ -49,6 +50,7 @@ resize();
 // ---------------------------------------------------------------- systems
 G.save = loadSave();
 G.save.settings.joy = G.save.settings.joy || 'fixed';
+G.save.settings.controls = G.save.settings.controls || 'auto';
 G.audio = new Audio();
 G.audio.sfxOn = G.save.settings.sfx;
 G.audio.musicOn = G.save.settings.music;
@@ -56,6 +58,8 @@ G.input = new Input(canvas);
 buildArt();
 
 const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+// start with touch controls on phones/tablets, keyboard hints on computers; it then follows what you use
+G.inputMode = coarse || navigator.maxTouchPoints > 0 && !window.matchMedia('(pointer: fine)').matches ? 'touch' : 'keys';
 let triedFs = false;
 G.requestFullscreen = () => {
   if (!coarse) return;
@@ -116,6 +120,11 @@ function bootScene() {
   return new TitleScene();
 }
 G.setScene(bootScene());
+
+// cloud save (only when served by an Ashveil server, see server.py)
+saveHooks.onWrite = () => Cloud.noteWrite();
+G.onSaveReplaced = () => G.setScene(new TitleScene());
+if (!G.autoplay) Cloud.init();
 
 // ---------------------------------------------------------------- loop
 let last = performance.now();

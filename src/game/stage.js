@@ -9,7 +9,7 @@ import { ART } from '../data/art.js';
 import { STAGES, THEMES, NIGHTMARE_BONUS } from '../data/stages.js';
 import { STORY } from '../data/story.js';
 import { xpToNext, MAX_LEVEL } from '../data/heroes.js';
-import { makeItem, rollRarity } from '../data/items.js';
+import { makeItem, rollRarity, salvageValue } from '../data/items.js';
 import { LORE } from '../data/lore.js';
 import { trackBounty } from '../data/bounties.js';
 import { GameMap, T } from './map.js';
@@ -19,6 +19,8 @@ import { FX } from './fx.js';
 import { hitEnemy, hurtPlayer, inLine } from './combat.js';
 import { layout, claimControl, drawControls, drawHud } from './hud.js';
 import { Dialogue } from '../scenes/dialogue.js';
+import { binds, actionHeld, actionPressed } from '../core/keys.js';
+import { SettingsPanel } from '../scenes/settings.js';
 
 export class StageScene {
   constructor(hs, stageIdx, nightmare, onExit, entry = 'west') {
@@ -57,6 +59,7 @@ export class StageScene {
     this.joy = { active: false, id: null, bx: 0, by: 0, kx: 0, ky: 0 };
     this.held = {};
     this.press = {};
+    this.buf = {};
     this.pressAnim = {};
     this.light = makeCanvas(G.W, G.H);
     this.godMode = false;
@@ -70,6 +73,7 @@ export class StageScene {
   enter() {
     G.audio.music('stage');
     this.banner(`${this.stage.id}  ${this.stage.name}`, this.nm ? 'Nightmare' : this.roam ? 'Cleared - enemies return each visit' : 'Chapter I', 2.6, true);
+    if (G.note) { this.banner('Collected on the way', G.note, 3, false, COL.gold); G.note = null; }
   }
 
   placeLorePage() {
@@ -103,7 +107,7 @@ export class StageScene {
     if (p.role === 'joy' && this.joy.id === p.id) this.joy.active = false;
   }
 
-  readControls() {
+  readControls(dt = 0) {
     const inp = G.input, c = this.ctl, Lo = layout();
     this.held = {};
     let mx = 0, my = 0;
@@ -118,20 +122,29 @@ export class StageScene {
       } else this.held[p.role] = true;
     }
     if (!this.joy.active) { this.joy.kx = 0; this.joy.ky = 0; }
-    // keyboard
-    if (inp.key('KeyA', 'ArrowLeft')) mx -= 1;
-    if (inp.key('KeyD', 'ArrowRight')) mx += 1;
-    if (inp.key('KeyW', 'ArrowUp')) my -= 1;
-    if (inp.key('KeyS', 'ArrowDown')) my += 1;
+    // keyboard (player-editable bindings)
+    const B = binds();
+    if (actionHeld('left', B)) mx -= 1;
+    if (actionHeld('right', B)) mx += 1;
+    if (actionHeld('up', B)) my -= 1;
+    if (actionHeld('down', B)) my += 1;
     const m = Math.hypot(mx, my);
     if (m > 1) { mx /= m; my /= m; }
     c.mx = mx; c.my = my;
-    c.attack = !!this.held.attack || inp.key('KeyJ');
-    c.skill = [!!this.press.s0 || inp.keyPressed('KeyK'), !!this.press.s1 || inp.keyPressed('KeyL'), !!this.press.s2 || inp.keyPressed('KeyI')];
-    c.ult = !!this.press.ult || inp.keyPressed('KeyU');
-    c.dodge = !!this.press.dodge || inp.keyPressed('Space');
-    c.potion = !!this.press.potion || inp.keyPressed('KeyH');
-    if (this.press.pause || inp.keyPressed('Escape', 'KeyP')) this.pause();
+    c.attack = !!this.held.attack || actionHeld('attack', B);
+    // a press is remembered for a moment, so tapping a skill just before the
+    // current swing / roll / cooldown ends still casts it
+    const buf = this.buf;
+    for (const k of ['s0', 's1', 's2', 'ult', 'dodge']) {
+      buf[k] = Math.max(0, (buf[k] || 0) - dt);
+      if (this.press[k] || actionPressed(k, B)) { buf[k] = 0.25; this.pressAnim[k] = 0.15; }
+    }
+    c.skill = [buf.s0 > 0, buf.s1 > 0, buf.s2 > 0];
+    c.ult = buf.ult > 0;
+    c.dodge = buf.dodge > 0;
+    c.potion = !!this.press.potion || actionPressed('potion', B);
+    if (c.potion) this.pressAnim.potion = 0.15;
+    if (this.press.pause || actionPressed('pause', B) || inp.keyPressed('Escape')) this.pause();
     this.press = {};
     if (G.autoplay) this.autoplay(c);
   }
@@ -539,8 +552,33 @@ export class StageScene {
     this.state = 'results';
   }
 
+  /** Sweep up everything still on the ground, so leaving a zone never loses loot. */
+  collectAll() {
+    const hs = this.hs, got = { items: 0, gold: 0, salvaged: 0, page: false, potions: 0 };
+    G.save.lore = G.save.lore || {};
+    for (const k of this.pickups) {
+      if (k.kind === 'gold') { hs.gold += k.v; this.stats.gold += k.v; got.gold += k.v; }
+      else if (k.kind === 'potion') { if (hs.potions < 5) { hs.potions++; got.potions++; } }
+      else if (k.kind === 'page') { G.save.lore[k.page.id] = true; got.page = true; }
+      else if (k.kind === 'item') {
+        if (hs.inv.length < 30) { hs.inv.push(k.item); got.items++; this.stats.items++; }
+        else { const v = salvageValue(k.item); hs.gold += v.gold; hs.shards += v.shards; got.salvaged++; }
+      }
+    }
+    this.pickups = [];
+    const parts = [];
+    if (got.items) parts.push(`${got.items} item${got.items > 1 ? 's' : ''}`);
+    if (got.gold) parts.push(`${got.gold} gold`);
+    if (got.potions) parts.push(`${got.potions} potion${got.potions > 1 ? 's' : ''}`);
+    if (got.page) parts.push('a lore page');
+    if (got.salvaged) parts.push(`${got.salvaged} salvaged (bag full)`);
+    return parts.join(', ');
+  }
+
   /** to: 'west' | 'east' | 'camp' */
   leave(to = 'camp') {
+    const note = this.collectAll();
+    if (note) G.note = note;
     writeSave(G.save);
     if (this.onExit) this.onExit({ to, chapterDone: !!this.chapterJustDone, stageIdx: this.stageIdx, nm: this.nm });
   }
@@ -549,7 +587,7 @@ export class StageScene {
   update(dt) {
     if (this.dialogue) { this.dialogue.update(dt); this.updateBanners(dt); return; }
     if (this.state !== 'play') { this.updateBanners(dt); return; }
-    this.readControls();
+    this.readControls(dt);
     if (this.state !== 'play') return;
     this.stats.time += dt;
     if (this.slowmo > 0) { this.slowmo -= dt; dt *= 0.3; }
@@ -562,7 +600,11 @@ export class StageScene {
       t.t -= dt;
       if (t.t <= 0) { this.timers.splice(i, 1); t.fn(); }
     }
+    const before = [p.skillCd[0], p.skillCd[1], p.skillCd[2], p.ember, p.dashCd];
     p.update(dt, this.ctl);
+    for (let i = 0; i < 3; i++) if (p.skillCd[i] > before[i]) this.buf['s' + i] = 0;
+    if (p.ember < before[3] - 1) this.buf.ult = 0;
+    if (p.dashCd > before[4]) this.buf.dodge = 0;
     this.updateArenas(dt);
 
     for (const e of this.enemies) updateEnemy(this, e, dt);
@@ -1094,19 +1136,16 @@ export class StageScene {
 
   // ------------------------------------------------------------ overlays
   drawPause(ctx) {
+    if (this.settings) { this.settings.draw(ctx); return; }
     shade(ctx, 0.7);
-    const w = 176, h = 156, x = Math.round(G.W / 2 - w / 2), y = Math.round(G.H / 2 - h / 2);
+    const w = 176, h = 112, x = Math.round(G.W / 2 - w / 2), y = Math.round(G.H / 2 - h / 2);
     panel(ctx, x, y, w, h, { edge: COL.bronzeD });
     title(ctx, 'Paused', G.W / 2, y + 8);
-    const s = G.save.settings;
     const bw = w - 24;
-    if (button(ctx, x + 12, y + 30, bw, 18, 'Resume')) this.state = 'play';
-    if (button(ctx, x + 12, y + 51, bw, 18, `Joystick: ${(s.joy || 'fixed') === 'fixed' ? 'Fixed' : 'Floating'}`)) { s.joy = (s.joy || 'fixed') === 'fixed' ? 'floating' : 'fixed'; writeSave(G.save); }
-    if (button(ctx, x + 12, y + 72, bw / 2 - 2, 18, `Music ${s.music ? 'On' : 'Off'}`)) { s.music = !s.music; G.audio.setMusic(s.music); writeSave(G.save); }
-    if (button(ctx, x + 14 + bw / 2, y + 72, bw / 2 - 2, 18, `Sound ${s.sfx ? 'On' : 'Off'}`)) { s.sfx = !s.sfx; G.audio.sfxOn = s.sfx; writeSave(G.save); }
-    drawText(ctx, (s.joy || 'fixed') === 'fixed' ? 'Stick stays in the corner.' : 'Stick appears where you touch.', G.W / 2, y + 96, { align: 'center', color: COL.faint });
-    if (button(ctx, x + 12, y + 110, bw, 18, 'Return to Greyhollow (keep loot)', { color: '#e0a090' })) this.leave('camp');
-    drawText(ctx, 'Progress saves automatically.', G.W / 2, y + 136, { align: 'center', color: COL.faint });
+    if (button(ctx, x + 12, y + 28, bw, 18, 'Resume', { color: '#ffe0a0' })) this.state = 'play';
+    if (button(ctx, x + 12, y + 49, bw, 18, 'Settings & controls')) this.settings = new SettingsPanel(() => { this.settings = null; }, { inStage: true });
+    if (button(ctx, x + 12, y + 70, bw, 18, 'Return to Greyhollow (keep loot)', { color: '#e0a090' })) this.leave('camp');
+    drawText(ctx, 'Progress saves automatically.', G.W / 2, y + 95, { align: 'center', color: COL.faint });
     if (G.input.keyPressed('Escape', 'KeyP')) this.state = 'play';
   }
 
@@ -1117,7 +1156,7 @@ export class StageScene {
     title(ctx, 'You have fallen', G.W / 2, y + 8, '#e0453a');
     drawText(ctx, 'The ash has not claimed you yet.', G.W / 2, y + 30, { align: 'center', color: COL.dim });
     const cost = this.reviveCost();
-    if (button(ctx, x + 12, y + 46, w - 24, 18, cost ? `Rise again (-${cost} gold)` : 'Rise again')) this.revive();
+    if (button(ctx, x + 12, y + 46, w - 24, 18, cost ? `Rise again (-${cost} gold)` : 'Rise again') || G.input.keyPressed('Enter')) this.revive();
     if (button(ctx, x + 12, y + 70, w - 24, 16, 'Return to Greyhollow (keep loot)')) this.leave('camp');
   }
 
@@ -1140,14 +1179,12 @@ export class StageScene {
       drawText(ctx, k, x + 14, y + 50 + i * 12, { color: COL.dim });
       drawText(ctx, String(v), x + w - 14, y + 50 + i * 12, { align: 'right', color: COL.text });
     });
-    drawText(ctx, 'Stars: clear / no falls / beat par time', G.W / 2, y + h - 42, { align: 'center', color: COL.faint });
+    drawText(ctx, 'Stars: clear / no falls / beat par time', G.W / 2, y + h - 48, { align: 'center', color: COL.faint });
+    drawText(ctx, 'Loot left on the ground is picked up when you leave.', G.W / 2, y + h - 38, { align: 'center', color: COL.faint });
     const bw = (w - 32) / 2;
-    if (this.lastZone) {
-      if (button(ctx, x + 40, y + h - 26, w - 80, 18, 'Return to Greyhollow', { color: '#ffe0a0' })) this.leave('camp');
-    } else {
-      if (button(ctx, x + 12, y + h - 26, bw, 18, 'Continue east', { color: '#ffe0a0' })) this.state = 'play';
-      if (button(ctx, x + 20 + bw, y + h - 26, bw, 18, 'Greyhollow')) this.leave('camp');
-    }
+    // never force the player out: they can always stay and pick up what is left
+    if (button(ctx, x + 12, y + h - 26, bw, 18, 'Keep exploring', { color: '#ffe0a0' }) || G.input.keyPressed('Enter', 'Escape')) this.state = 'play';
+    if (button(ctx, x + 20 + bw, y + h - 26, bw, 18, 'Greyhollow')) this.leave('camp');
   }
 
 }

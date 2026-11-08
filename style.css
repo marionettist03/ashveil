@@ -17,3 +17,36 @@ canvas {
   touch-action: none;
   outline: none;
 }
+
+/* cloud save sign-in form (real inputs so phones show their keyboard) */
+.cloud-form {
+  position: fixed; inset: 0; z-index: 10;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(8, 6, 10, 0.72);
+  font: 15px/1.35 ui-monospace, Menlo, Consolas, monospace;
+  color: #ece4d8;
+  user-select: text; -webkit-user-select: text;
+  touch-action: manipulation;
+}
+.cloud-form form {
+  width: min(420px, calc(100vw - 32px)); max-height: calc(100vh - 16px); overflow: auto;
+  box-sizing: border-box; padding: 14px 16px;
+  background: #17131c; border: 3px solid #6b4e2c; box-shadow: 0 0 0 3px #000;
+}
+.cloud-form h2 { margin: 0 0 4px; font-size: 18px; color: #b8874a; }
+.cloud-form p { margin: 4px 0; color: #958a9c; font-size: 13px; }
+.cloud-form .err { color: #ffd24a; min-height: 1.2em; }
+.cloud-form label { display: block; margin: 8px 0 0; font-size: 13px; color: #c9b8a8; }
+.cloud-form input {
+  display: block; width: 100%; box-sizing: border-box; margin-top: 3px; padding: 8px;
+  font: inherit; font-size: 16px; color: #ece4d8; background: #0d0a10; border: 2px solid #4a4052; border-radius: 0;
+}
+.cloud-form input:focus { outline: none; border-color: #b8874a; }
+.cloud-form .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.cloud-form button {
+  flex: 1 1 auto; padding: 9px 10px; font: inherit; font-size: 14px; cursor: pointer;
+  color: #ffe0a0; background: #251e2b; border: 2px solid #5a4a3c; border-radius: 0;
+}
+.cloud-form button:hover, .cloud-form button:focus-visible { border-color: #b8874a; background: #33283a; outline: none; }
+.cloud-form button.ghost { color: #958a9c; }
+.cloud-form button:disabled { opacity: 0.5; }

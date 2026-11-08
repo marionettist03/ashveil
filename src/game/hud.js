@@ -6,6 +6,7 @@ import { bar, COL, panel } from '../core/ui.js';
 import { drawSprite } from '../core/sprite.js';
 import { ART } from '../data/art.js';
 import { skillPower, xpToNext } from '../data/heroes.js';
+import { touchUI, binds, keyName } from '../core/keys.js';
 
 export function layout() {
   const W = G.W, H = G.H, R = W - G.safeR, L = G.safeL;
@@ -31,6 +32,8 @@ export function claimControl(p, S) {
   const keys = ['attack', 's0', 's1', 's2', 'ult', 'dodge', 'potion', 'pause'];
   if (S && S.interactable) keys.unshift('interact');
   for (const k of keys) if (hit(Lo[k], k === 'attack' ? 10 : 6)) return k;
+  // mouse on a computer: left button held = attack, right click = dodge
+  if (p.type === 'mouse' && !touchUI()) return p.button === 2 ? 'dodge' : p.y > 34 ? 'attack' : null;
   if (p.x < G.W * 0.48 && p.y > 34) return 'joy';
   return null;
 }
@@ -134,6 +137,89 @@ function roundButton(ctx, S, key, b, edge, opt = {}) {
 export function drawControls(S, ctx) {
   const Lo = layout();
   const p = S.player, hero = p.hero, hs = S.hs;
+  const touch = touchUI();
+  const B = touch ? null : binds();
+  // keyboard mode: a small key name under each button instead of the joystick
+  const tag = (b, action, r) => {
+    if (touch) return;
+    const k = B[action].find(Boolean);
+    if (!k) return;
+    const t = keyName(k);
+    const w = measure(t) + 4, x = Math.round(b.x - w / 2), y = Math.round(b.y + r - 4);
+    ctx.fillStyle = '#140f17'; ctx.fillRect(x, y, w, 9);
+    ctx.fillStyle = '#5a4a3c'; ctx.fillRect(x, y, w, 1); ctx.fillRect(x, y + 8, w, 1); ctx.fillRect(x, y, 1, 9); ctx.fillRect(x + w - 1, y, 1, 9);
+    drawText(ctx, t, b.x, y + 1, { align: 'center', color: '#e8dcc0' });
+  };
+  if (touch) drawJoystick(S, ctx, Lo);
+  else if (S.time < 12 && !S.dialogue) {
+    const m = ['up', 'left', 'down', 'right'].map((a) => keyName(B[a][0])).join('');
+    drawText(ctx, `${m.length === 4 ? m : 'Arrows'}: move   Hold mouse: attack   Right-click: roll`, G.W / 2, 36, { align: 'center', color: COL.faint, outline: '#000', alpha: Math.min(1, (12 - S.time) / 2) });
+  }
+
+  // attack
+  const A = Lo.attack;
+  const ar = roundButton(ctx, S, 'attack', A, '#b8874a');
+  const icon = ART.icons[hero.weapon];
+  if (icon) drawSprite(ctx, icon, A.x, A.y + 6 + (S.held.attack ? 1 : 0), { scale: S.held.attack ? 2 : 2 });
+  tag(A, 'attack', ar);
+
+  // skills
+  for (let i = 0; i < 3; i++) {
+    const key = 's' + i, b = Lo[key];
+    const sk = hero.skills[i];
+    const unlocked = p.skillUnlocked(i);
+    const cdMax = skillPower(sk, hs.ranks[i] || 1).cd * p.stats.cdrMult;
+    const r = roundButton(ctx, S, key, b, unlocked ? hero.color : '#3a3240', unlocked ? {} : { fill: 'rgba(15,12,18,0.7)' });
+    if (unlocked) {
+      glyph(ctx, sk.id, b.x, b.y, p.skillCd[i] > 0 ? '#6a6070' : hero.color);
+      discRows(ctx, b.x, b.y, r, p.skillCd[i] / cdMax, 'rgba(8,6,10,0.68)', false);
+      if (p.skillCd[i] > 0) drawText(ctx, Math.ceil(p.skillCd[i]), b.x, b.y - 3, { align: 'center', color: '#ece4d8', outline: '#000' });
+      tag(b, key, r);
+    } else {
+      drawSprite(ctx, ART.icons.lock, b.x, b.y + 4);
+      drawText(ctx, 'Lv' + sk.unlock, b.x, b.y + b.r - 3, { align: 'center', color: COL.dim, outline: '#000' });
+    }
+  }
+  // ultimate
+  const U = Lo.ult;
+  const full = p.ember >= 100;
+  const pulse = full ? Math.floor(G.time * 6) % 2 : 0;
+  const ur = roundButton(ctx, S, 'ult', U, full ? (pulse ? '#ffe08a' : '#ffb347') : '#6b4e2c', full ? { fill: pulse ? 'rgba(150,70,24,0.92)' : 'rgba(120,55,20,0.92)' } : {});
+  if (!full) discRows(ctx, U.x, U.y, ur, p.ember / 100, 'rgba(255,138,42,0.4)', true);
+  glyph(ctx, hero.ult.id, U.x, U.y, full ? '#ffe08a' : '#7a6a5a');
+  if (full && touch) drawText(ctx, 'ULT', U.x, U.y + ur - 2, { align: 'center', color: '#ffe08a', outline: '#000' });
+  tag(U, 'ult', ur);
+
+  // dodge
+  const D = Lo.dodge;
+  const dr = roundButton(ctx, S, 'dodge', D, '#8a7a6a');
+  glyph(ctx, 'dodge', D.x, D.y, p.dashCd > 0 ? '#5a5060' : '#d6d0cc');
+  discRows(ctx, D.x, D.y, dr, p.dashCd / hero.dodgeCd, 'rgba(8,6,10,0.68)', false);
+  tag(D, 'dodge', dr);
+
+  // potion
+  const P = Lo.potion;
+  const pr = roundButton(ctx, S, 'potion', P, hs.potions > 0 ? '#d8343a' : '#3a3240');
+  drawSprite(ctx, ART.icons.potion, P.x, P.y + 6, { alpha: hs.potions > 0 ? 1 : 0.4 });
+  discRows(ctx, P.x, P.y, pr, p.potionCd / p.potionCdMax, 'rgba(8,6,10,0.68)', false);
+  drawText(ctx, hs.potions, P.x + 9, P.y + 3, { color: '#ece4d8', outline: '#000' });
+  tag(P, 'potion', pr);
+
+  // pause
+  const Pa = Lo.pause;
+  roundButton(ctx, S, 'pause', Pa, '#6b5a4a');
+  drawSprite(ctx, ART.icons.pause, Pa.x, Pa.y + 6);
+
+  // context action (talk / read / travel)
+  if (S.interactable) {
+    const I = Lo.interact;
+    const ir = roundButton(ctx, S, 'interact', I, '#ffd24a', { fill: 'rgba(60,44,20,0.9)' });
+    glyph(ctx, 'talk', I.x, I.y, '#ffe0a0');
+    drawText(ctx, S.interactable.label, I.x, I.y - ir - 11, { align: 'center', color: '#ffe0a0', outline: '#000' });
+  }
+}
+
+function drawJoystick(S, ctx, Lo) {
   // joystick: base stays where it is (fixed) or where you first touched (floating)
   const j = S.joy;
   const jx = j.active ? j.bx : Lo.joyHome.x, jy = j.active ? j.by : Lo.joyHome.y;
@@ -148,63 +234,6 @@ export function drawControls(S, ctx) {
   ctx.globalAlpha = j.active ? 1 : 0.6;
   blitDisc(ctx, jx + (j.active ? j.kx : 0), jy + (j.active ? j.ky : 0), j.active ? 11 : 10, j.active ? '#4a3c48' : '#3a3040', '#c9b8a8', 'rgba(255,255,255,0.22)', 'rgba(0,0,0,0.35)');
   ctx.globalAlpha = 1;
-
-  // attack
-  const A = Lo.attack;
-  roundButton(ctx, S, 'attack', A, '#b8874a');
-  const icon = ART.icons[hero.weapon];
-  if (icon) drawSprite(ctx, icon, A.x, A.y + 6 + (S.held.attack ? 1 : 0), { scale: S.held.attack ? 2 : 2 });
-
-  // skills
-  for (let i = 0; i < 3; i++) {
-    const key = 's' + i, b = Lo[key];
-    const sk = hero.skills[i];
-    const unlocked = p.skillUnlocked(i);
-    const cdMax = skillPower(sk, hs.ranks[i] || 1).cd * p.stats.cdrMult;
-    const r = roundButton(ctx, S, key, b, unlocked ? hero.color : '#3a3240', unlocked ? {} : { fill: 'rgba(15,12,18,0.7)' });
-    if (unlocked) {
-      glyph(ctx, sk.id, b.x, b.y, p.skillCd[i] > 0 ? '#6a6070' : hero.color);
-      discRows(ctx, b.x, b.y, r, p.skillCd[i] / cdMax, 'rgba(8,6,10,0.68)', false);
-      if (p.skillCd[i] > 0) drawText(ctx, Math.ceil(p.skillCd[i]), b.x, b.y - 3, { align: 'center', color: '#ece4d8', outline: '#000' });
-    } else {
-      drawSprite(ctx, ART.icons.lock, b.x, b.y + 4);
-      drawText(ctx, 'Lv' + sk.unlock, b.x, b.y + b.r - 3, { align: 'center', color: COL.dim, outline: '#000' });
-    }
-  }
-  // ultimate
-  const U = Lo.ult;
-  const full = p.ember >= 100;
-  const pulse = full ? Math.floor(G.time * 6) % 2 : 0;
-  const ur = roundButton(ctx, S, 'ult', U, full ? (pulse ? '#ffe08a' : '#ffb347') : '#6b4e2c', full ? { fill: pulse ? 'rgba(150,70,24,0.92)' : 'rgba(120,55,20,0.92)' } : {});
-  if (!full) discRows(ctx, U.x, U.y, ur, p.ember / 100, 'rgba(255,138,42,0.4)', true);
-  glyph(ctx, hero.ult.id, U.x, U.y, full ? '#ffe08a' : '#7a6a5a');
-  if (full) drawText(ctx, 'ULT', U.x, U.y + ur - 2, { align: 'center', color: '#ffe08a', outline: '#000' });
-
-  // dodge
-  const D = Lo.dodge;
-  const dr = roundButton(ctx, S, 'dodge', D, '#8a7a6a');
-  glyph(ctx, 'dodge', D.x, D.y, p.dashCd > 0 ? '#5a5060' : '#d6d0cc');
-  discRows(ctx, D.x, D.y, dr, p.dashCd / hero.dodgeCd, 'rgba(8,6,10,0.68)', false);
-
-  // potion
-  const P = Lo.potion;
-  const pr = roundButton(ctx, S, 'potion', P, hs.potions > 0 ? '#d8343a' : '#3a3240');
-  drawSprite(ctx, ART.icons.potion, P.x, P.y + 6, { alpha: hs.potions > 0 ? 1 : 0.4 });
-  discRows(ctx, P.x, P.y, pr, p.potionCd / p.potionCdMax, 'rgba(8,6,10,0.68)', false);
-  drawText(ctx, hs.potions, P.x + 9, P.y + 3, { color: '#ece4d8', outline: '#000' });
-
-  // pause
-  const Pa = Lo.pause;
-  roundButton(ctx, S, 'pause', Pa, '#6b5a4a');
-  drawSprite(ctx, ART.icons.pause, Pa.x, Pa.y + 6);
-
-  // context action (talk / read / travel)
-  if (S.interactable) {
-    const I = Lo.interact;
-    const ir = roundButton(ctx, S, 'interact', I, '#ffd24a', { fill: 'rgba(60,44,20,0.9)' });
-    glyph(ctx, 'talk', I.x, I.y, '#ffe0a0');
-    drawText(ctx, S.interactable.label, I.x, I.y - ir - 11, { align: 'center', color: '#ffe0a0', outline: '#000' });
-  }
 }
 
 // ------------------------------------------------------------------ HUD

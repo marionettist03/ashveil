@@ -18,6 +18,8 @@ import { computeStats } from '../game/stats.js';
 import { StageScene } from '../game/stage.js';
 import { Dialogue } from './dialogue.js';
 import { Backdrop, HeroSelectScene } from './title.js';
+import { SettingsPanel } from './settings.js';
+import { Cloud } from '../core/cloud.js';
 
 /** Start walking a zone. entry: 'west' (from Greyhollow side) or 'east'. */
 export function makeZone(hs, idx, nm, entry = 'west') {
@@ -57,6 +59,7 @@ export class CampScene {
     if (opt.chapterDone) this.queue.push(CHAPTER_END);
     ensureBounties(hs);
     writeSave(G.save);
+    if (G.note) { this.say('Collected on the way: ' + G.note, COL.gold); this.toast.t = -2; G.note = null; }
     this.nextDialogue();
     if (!this.dialogue && opt.returned) this.tab = null;
   }
@@ -100,6 +103,7 @@ export class CampScene {
       else if (this.tab === 'smith') this.drawSmith(ctx);
       else if (this.tab === 'board') this.drawBoard(ctx);
       else if (this.tab === 'journal') this.drawJournal(ctx);
+      else if (this.tab === 'settings') { this.settingsPanel.draw(ctx); return; }
       if (G.input.keyPressed('Escape')) this.tab = null;
     }
     if (this.toast) {
@@ -187,18 +191,22 @@ export class CampScene {
       ['board', `Bounties${ready ? `  (${ready} done)` : ''}`, ready ? '#ffd24a' : null],
       ['journal', `Journal  ${pages}/${LORE.length}`],
       ['talk', 'Sit with Ansel'],
+      ['settings', 'Settings', Cloud.state === 'conflict' ? COL.red : COL.dim],
       ['heroes', 'Change hero', COL.dim],
     ];
+    const gap = Math.min(22, Math.floor((G.H - y0 - 4) / items.length));
     items.forEach(([id, label, col], i) => {
-      if (button(ctx, bx, y0 + i * 22, bw, 19, label, { color: col || COL.text })) {
+      if (button(ctx, bx, y0 + i * gap, bw, gap - 3, label, { color: col || COL.text })) {
         if (id === 'heroes') { writeSave(G.save); G.setScene(new HeroSelectScene()); }
         else if (id === 'talk') this.talk();
+        else if (id === 'settings') { this.tab = 'settings'; this.settingsPanel = new SettingsPanel(() => { this.tab = null; }); }
         else { this.tab = id; this.sel = null; }
       }
     });
     const st = computeStats(hs);
     drawText(ctx, `Power ${st.power}`, G.safeL + 10, 32, { color: COL.bronze, outline: '#000' });
     drawText(ctx, 'Greyhollow Hearth', G.safeL + 10, 43, { color: COL.dim, outline: '#000' });
+    if (Cloud.signedIn) drawText(ctx, Cloud.state === 'conflict' ? 'Cloud save: choose a copy in Settings' : 'Cloud: ' + Cloud.statusText(), G.safeL + 10, 54, { color: Cloud.state === 'conflict' ? COL.red : COL.faint, outline: '#000' });
     if (G.input.keyPressed('Enter')) this.tab = 'road';
   }
 

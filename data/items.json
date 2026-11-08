@@ -1,0 +1,115 @@
+{
+  "slotNames": {"weapon": "Weapon", "helm": "Helm", "armor": "Armor", "boots": "Boots", "charm": "Charm"},
+  "slotWeights": {"weapon": 26, "helm": 18, "armor": 20, "boots": 18, "charm": 18},
+  "rarityStatMult": [1, 1.15, 1.32, 1.52, 1.8],
+  "affixCount": [0, 1, 2, 3, 3],
+  "dropRates": {
+    "normal": {
+      "base": [64, 29, 6, 0.6, 0],
+      "perTier": [0, 0, 1.5, 0.6, 0],
+      "minTier": [0, 0, 0, 1, 0],
+      "nightmare": [0, 0, 0, 0, 0.15]
+    },
+    "elite": {
+      "base": [15, 55, 24, 4, 0],
+      "perTier": [0, 0, 2, 2, 0],
+      "minTier": [0, 0, 0, 1, 0],
+      "nightmare": [0, 0, 0, 0, 1]
+    },
+    "boss": {
+      "base": [0, 0, 72, 25, 2.5],
+      "perTier": [0, 0, -4, 3, 1.5],
+      "minTier": [0, 0, 0, 0, 0],
+      "nightmare": [0, 0, 0, 0, 0]
+    }
+  },
+  "bases": {
+    "weapon": {
+      "kes": ["Rusted Shivs", "Twin Fangs", "Kestrel Talons", "Ashsteel Pair"],
+      "brannoc": ["Iron Maul", "Oathhammer", "Watchman's Maul", "Ashforged Maul"],
+      "odalys": ["Ashwood Staff", "Censer Rod", "Ember Scepter", "Starglass Staff"],
+      "hale": ["Hunting Bow", "Yew Longbow", "Thornstring Bow", "Greatwood Bow"]
+    },
+    "helm": ["Leather Cap", "Iron Coif", "Ashen Helm", "Warden's Visor"],
+    "armor": ["Padded Jerkin", "Chain Shirt", "Ashplate", "Oathbound Mail"],
+    "boots": ["Worn Boots", "Hunter's Boots", "Iron Greaves", "Ashwalkers"],
+    "charm": ["Copper Ring", "Bone Charm", "Ember Signet", "Starglass Pendant"]
+  },
+  "affixes": {
+    "atk": {"label": "+{v} Attack", "prefix": "Brutal", "base": 2, "perLevel": 0.8},
+    "atkP": {"label": "+{v}% Attack", "prefix": "Fierce", "min": 4, "max": 10},
+    "crit": {"label": "+{v}% Crit chance", "prefix": "Keen", "min": 2, "max": 6},
+    "critDmg": {"label": "+{v}% Crit damage", "prefix": "Cruel", "min": 10, "max": 30},
+    "hp": {"label": "+{v} Max HP", "prefix": "Stout", "base": 8, "perLevel": 4},
+    "def": {"label": "+{v} Defense", "prefix": "Warded", "base": 1, "perLevel": 0.6},
+    "aspd": {"label": "+{v}% Attack speed", "prefix": "Swift", "min": 4, "max": 10},
+    "mspd": {"label": "+{v}% Move speed", "prefix": "Fleet", "min": 3, "max": 8},
+    "cdr": {"label": "-{v}% Cooldowns", "prefix": "Tireless", "min": 3, "max": 8},
+    "leech": {"label": "{v}% Life steal", "prefix": "Thirsting", "min": 1, "max": 3},
+    "ember": {"label": "+{v}% Ember gain", "prefix": "Smoldering", "min": 8, "max": 20},
+    "gold": {"label": "+{v}% Gold found", "prefix": "Gilded", "min": 10, "max": 30}
+  },
+  "suffixes": [
+    "of the Owl",
+    "of Embers",
+    "of the Vigil",
+    "of Greyhollow",
+    "of the Hearth",
+    "of Ash",
+    "of the Stag",
+    "of Dusk",
+    "of the Road"
+  ],
+  "legendaries": {
+    "kes": {
+      "slot": "weapon",
+      "name": "Wrenfeather Blades",
+      "leg": "featherKnives",
+      "text": "Feather Step leaves a ring of knives behind you."
+    },
+    "brannoc": {
+      "slot": "weapon",
+      "name": "Aldren's Oath",
+      "leg": "doubleSlam",
+      "text": "Oathbreaker strikes the ground twice."
+    },
+    "odalys": {
+      "slot": "weapon",
+      "name": "The Unlit Censer",
+      "leg": "moreOrbs",
+      "text": "Ashen Orbs summons two extra orbs."
+    },
+    "hale": {
+      "slot": "weapon",
+      "name": "Old Crown's Antler",
+      "leg": "splitArrow",
+      "text": "Every 4th arrow splits into three."
+    },
+    "any": [
+      {
+        "slot": "charm",
+        "name": "Heart of the Cinder Star",
+        "leg": "starHeart",
+        "text": "Critical hits build double Ember."
+      },
+      {
+        "slot": "boots",
+        "name": "Ashwalker Treads",
+        "leg": "ashTrail",
+        "text": "Dodging leaves a trail of burning ash."
+      },
+      {
+        "slot": "helm",
+        "name": "Crown of Embers",
+        "leg": "emberCrown",
+        "text": "Your Ultimate deals 35% more damage."
+      },
+      {
+        "slot": "armor",
+        "name": "Hearthmail of Greyhollow",
+        "leg": "hearth",
+        "text": "Potions heal 50% more."
+      }
+    ]
+  }
+}

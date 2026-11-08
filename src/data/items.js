@@ -1,54 +1,27 @@
-// Gear: bases, affixes, legendaries and random generation.
+// Gear generation. Names, affixes, legendaries and drop rates live in data/items.json.
 import { rand, pick, weighted, uid } from '../core/util.js';
 import { RARITY } from '../core/ui.js';
+import { loadJSON } from '../core/data.js';
 
-export const SLOT_NAMES = { weapon: 'Weapon', helm: 'Helm', armor: 'Armor', boots: 'Boots', charm: 'Charm' };
+const D = await loadJSON('items.json');
+export const SLOT_NAMES = D.slotNames;
+const BASES = D.bases;
 
-const BASES = {
-  weapon: {
-    kes: ['Rusted Shivs', 'Twin Fangs', 'Kestrel Talons', 'Ashsteel Pair'],
-    brannoc: ['Iron Maul', 'Oathhammer', 'Watchman\'s Maul', 'Ashforged Maul'],
-    odalys: ['Ashwood Staff', 'Censer Rod', 'Ember Scepter', 'Starglass Staff'],
-    hale: ['Hunting Bow', 'Yew Longbow', 'Thornstring Bow', 'Greatwood Bow'],
-  },
-  helm: ['Leather Cap', 'Iron Coif', 'Ashen Helm', 'Warden\'s Visor'],
-  armor: ['Padded Jerkin', 'Chain Shirt', 'Ashplate', 'Oathbound Mail'],
-  boots: ['Worn Boots', 'Hunter\'s Boots', 'Iron Greaves', 'Ashwalkers'],
-  charm: ['Copper Ring', 'Bone Charm', 'Ember Signet', 'Starglass Pendant'],
-};
-
-export const AFFIXES = {
-  atk: { label: (v) => `+${v} Attack`, roll: (l) => 2 + l * 0.8, int: true, prefix: 'Brutal' },
-  atkP: { label: (v) => `+${v}% Attack`, roll: () => rand(4, 10), prefix: 'Fierce' },
-  crit: { label: (v) => `+${v}% Crit chance`, roll: () => rand(2, 6), prefix: 'Keen' },
-  critDmg: { label: (v) => `+${v}% Crit damage`, roll: () => rand(10, 30), prefix: 'Cruel' },
-  hp: { label: (v) => `+${v} Max HP`, roll: (l) => 8 + l * 4, int: true, prefix: 'Stout' },
-  def: { label: (v) => `+${v} Defense`, roll: (l) => 1 + l * 0.6, int: true, prefix: 'Warded' },
-  aspd: { label: (v) => `+${v}% Attack speed`, roll: () => rand(4, 10), prefix: 'Swift' },
-  mspd: { label: (v) => `+${v}% Move speed`, roll: () => rand(3, 8), prefix: 'Fleet' },
-  cdr: { label: (v) => `-${v}% Cooldowns`, roll: () => rand(3, 8), prefix: 'Tireless' },
-  leech: { label: (v) => `${v}% Life steal`, roll: () => rand(1, 3), prefix: 'Thirsting' },
-  ember: { label: (v) => `+${v}% Ember gain`, roll: () => rand(8, 20), prefix: 'Smoldering' },
-  gold: { label: (v) => `+${v}% Gold found`, roll: () => rand(10, 30), prefix: 'Gilded' },
-};
+// affix data -> label + roll functions. A roll is either base + perLevel * item level, or random min..max.
+export const AFFIXES = {};
+for (const [id, a] of Object.entries(D.affixes)) {
+  AFFIXES[id] = {
+    prefix: a.prefix,
+    label: (v) => a.label.replace('{v}', v),
+    roll: a.min !== undefined ? () => rand(a.min, a.max) : (l) => (a.base || 0) + (a.perLevel || 0) * l,
+  };
+}
 const AFFIX_IDS = Object.keys(AFFIXES);
-const SUFFIXES = ['of the Owl', 'of Embers', 'of the Vigil', 'of Greyhollow', 'of the Hearth', 'of Ash', 'of the Stag', 'of Dusk', 'of the Road'];
-
-export const LEGENDARIES = {
-  kes: { slot: 'weapon', name: 'Wrenfeather Blades', leg: 'featherKnives', text: 'Feather Step leaves a ring of knives behind you.' },
-  brannoc: { slot: 'weapon', name: 'Aldren\'s Oath', leg: 'doubleSlam', text: 'Oathbreaker strikes the ground twice.' },
-  odalys: { slot: 'weapon', name: 'The Unlit Censer', leg: 'moreOrbs', text: 'Ashen Orbs summons two extra orbs.' },
-  hale: { slot: 'weapon', name: 'Old Crown\'s Antler', leg: 'splitArrow', text: 'Every 4th arrow splits into three.' },
-  any: [
-    { slot: 'charm', name: 'Heart of the Cinder Star', leg: 'starHeart', text: 'Critical hits build double Ember.' },
-    { slot: 'boots', name: 'Ashwalker Treads', leg: 'ashTrail', text: 'Dodging leaves a trail of burning ash.' },
-    { slot: 'helm', name: 'Crown of Embers', leg: 'emberCrown', text: 'Your Ultimate deals 35% more damage.' },
-    { slot: 'armor', name: 'Hearthmail of Greyhollow', leg: 'hearth', text: 'Potions heal 50% more.' },
-  ],
-};
-
-const RARITY_MULT = [1, 1.15, 1.32, 1.52, 1.8];
-const AFFIX_COUNT = [0, 1, 2, 3, 3];
+const SUFFIXES = D.suffixes;
+export const LEGENDARIES = D.legendaries;
+const RARITY_MULT = D.rarityStatMult;
+const AFFIX_COUNT = D.affixCount;
+const SLOT_WEIGHTS = Object.entries(D.slotWeights);
 
 function mainStats(slot, ilvl, rm) {
   switch (slot) {
@@ -63,9 +36,7 @@ function mainStats(slot, ilvl, rm) {
 
 function rollAffix(id, ilvl) {
   const a = AFFIXES[id];
-  let v = a.roll(ilvl);
-  v = a.int ? Math.max(1, Math.round(v)) : Math.max(1, Math.round(v));
-  return { id, v };
+  return { id, v: Math.max(1, Math.round(a.roll(ilvl))) };
 }
 
 /**
@@ -75,15 +46,13 @@ function rollAffix(id, ilvl) {
  */
 export function rollRarity({ tier = 0, elite = false, boss = false, nm = false } = {}) {
   const t = tier + (nm ? 2 : 0);
-  let w;
-  if (boss) w = [0, 0, 72 - t * 4, 25 + t * 3, 2.5 + t * 1.5];
-  else if (elite) w = [15, 55, 24 + t * 2, t >= 1 ? 4 + t * 2 : 0, nm ? 1 : 0];
-  else w = [64, 29, 6 + t * 1.5, t >= 1 ? 0.6 + t * 0.6 : 0, nm ? 0.15 : 0];
+  const r = D.dropRates[boss ? 'boss' : elite ? 'elite' : 'normal'];
+  const w = r.base.map((b, i) => (t >= r.minTier[i] ? b + r.perTier[i] * t + (nm ? r.nightmare[i] : 0) : 0));
   return weighted(w.map((x, i) => [i, Math.max(0, x)]));
 }
 
 export function makeItem({ heroId, ilvl, rarity, slot }) {
-  slot = slot || weighted([['weapon', 26], ['helm', 18], ['armor', 20], ['boots', 18], ['charm', 18]]);
+  slot = slot || weighted(SLOT_WEIGHTS);
   ilvl = Math.max(1, Math.round(ilvl));
   const tier = Math.min(3, Math.floor((ilvl - 1) / 5));
   const rm = RARITY_MULT[rarity];

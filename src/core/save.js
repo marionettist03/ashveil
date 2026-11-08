@@ -37,8 +37,12 @@ export function loadSave() {
   return data;
 }
 
-export function writeSave(data) {
+/** onWrite: called after every save (cloud sync hooks in here). */
+export const saveHooks = { onWrite: null };
+
+export function writeSave(data, silent = false) {
   memory = data;
+  if (!silent && saveHooks.onWrite) saveHooks.onWrite();
   try {
     localStorage.setItem(KEY, JSON.stringify(data));
     return true;

@@ -9,6 +9,8 @@ import { ART } from '../data/art.js';
 import { HEROES, HERO_ORDER } from '../data/heroes.js';
 import { CHAPTER_NAME } from '../data/stages.js';
 import { CampScene } from './camp.js';
+import { SettingsPanel } from './settings.js';
+import { Cloud } from '../core/cloud.js';
 
 // ------------------------------------------------------------ shared backdrop
 export class Backdrop {
@@ -82,12 +84,18 @@ export class Backdrop {
 
 // ------------------------------------------------------------ title
 export class TitleScene {
-  constructor() { this.bg = new Backdrop(); this.t = 0; }
+  constructor() { this.bg = new Backdrop(); this.t = 0; this.isMenu = true; this.settings = null; }
   enter() { G.audio.music('calm'); }
   update(dt) { this.bg.update(dt); this.t += dt; }
   draw(ctx) {
     this.bg.draw(ctx);
     const W = G.W, H = G.H;
+    if (this.settings) { this.settings.draw(ctx); return; }
+    if (button(ctx, W - G.safeR - 70, 6, 64, 16, 'Settings', { color: COL.dim })) { this.settings = new SettingsPanel(() => { this.settings = null; }); return; }
+    if (Cloud.available) {
+      const t = Cloud.signedIn ? (Cloud.state === 'conflict' ? 'Cloud save: choose a copy in Settings' : `Cloud save: ${Cloud.cred.name} - ${Cloud.statusText()}`) : 'Cloud save available: sign in under Settings';
+      drawText(ctx, t, W / 2, H - 24, { align: 'center', color: Cloud.state === 'conflict' ? COL.red : COL.dim, outline: '#000' });
+    }
     const y = Math.round(H * 0.2);
     // logo with an ember shimmer
     drawText(ctx, 'ASHVEIL', W / 2 + 2, y + 2, { align: 'center', scale: 5, color: '#2a1408', shadow: false });
@@ -98,7 +106,7 @@ export class TitleScene {
     drawText(ctx, 'ASHVEIL', W / 2, y, { align: 'center', scale: 5, color: '#ffe0a0', shadow: false });
     ctx.restore();
     drawText(ctx, CHAPTER_NAME, W / 2, y + 44, { align: 'center', color: '#a89888' });
-    if (Math.floor(this.t * 2) % 2 === 0) drawText(ctx, 'Tap to begin', W / 2, H * 0.74, { align: 'center', color: COL.text, outline: '#000' });
+    if (Math.floor(this.t * 2) % 2 === 0) drawText(ctx, G.inputMode === 'keys' ? 'Click or press Enter to begin' : 'Tap to begin', W / 2, H * 0.74, { align: 'center', color: COL.text, outline: '#000' });
     drawText(ctx, 'An original game. Offline. No ads.', W / 2, H - 12, { align: 'center', color: COL.faint });
     if (G.input.consumeAnyTap() || G.input.keyPressed('Enter', 'Space')) {
       G.audio.play('ui');
@@ -113,6 +121,7 @@ export class HeroSelectScene {
     this.bg = bg || new Backdrop();
     this.sel = G.save.last && HEROES[G.save.last] ? HERO_ORDER.indexOf(G.save.last) : 0;
     this.t = 0;
+    this.isMenu = true;
     this.confirmReset = false;
   }
   enter() { G.audio.music('calm'); }

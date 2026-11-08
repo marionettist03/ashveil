@@ -17,13 +17,21 @@ export class Input {
     window.addEventListener('pointerup', (e) => this._up(e, false), opts);
     window.addEventListener('pointercancel', (e) => this._up(e, true), opts);
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    // left/right modifier keys also count as one plain key ("Shift"), so either works
+    const alias = (code) => (/^(Shift|Control|Alt|Meta)(Left|Right)$/.test(code) ? code.replace(/(Left|Right)$/, '') : null);
+    const typing = (e) => e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
     window.addEventListener('keydown', (e) => {
+      if (typing(e)) return; // the sign-in form is open
       if (this.onFirstGesture) { this.onFirstGesture(); }
-      if (!this.keys.has(e.code)) this.pressed.add(e.code);
-      this.keys.add(e.code);
-      if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
+      G.inputMode = 'keys';
+      for (const c of [e.code, alias(e.code)]) {
+        if (!c) continue;
+        if (!this.keys.has(c)) this.pressed.add(c);
+        this.keys.add(c);
+      }
+      if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.code)) e.preventDefault();
     });
-    window.addEventListener('keyup', (e) => this.keys.delete(e.code));
+    window.addEventListener('keyup', (e) => { this.keys.delete(e.code); const a = alias(e.code); if (a) this.keys.delete(a); });
     window.addEventListener('blur', () => { this.keys.clear(); this.resetPointers(); });
   }
 
@@ -37,7 +45,9 @@ export class Input {
     if (this.onFirstGesture) this.onFirstGesture();
     try { this.canvas.setPointerCapture(e.pointerId); } catch (err) { /* not supported */ }
     const { x, y } = this.toInternal(e);
-    const p = { id: e.pointerId, x, y, sx: x, sy: y, t0: performance.now(), role: null, moved: 0 };
+    // a finger shows the touch controls; a mouse means a desktop, so they hide
+    G.inputMode = e.pointerType === 'mouse' ? 'keys' : 'touch';
+    const p = { id: e.pointerId, x, y, sx: x, sy: y, t0: performance.now(), role: null, moved: 0, type: e.pointerType, button: e.button };
     this.pointers.set(e.pointerId, p);
     if (G.scene && G.scene.claimPointer) p.role = G.scene.claimPointer(p) || null;
   }

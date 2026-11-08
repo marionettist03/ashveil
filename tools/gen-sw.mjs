@@ -1,12 +1,13 @@
 // Regenerates sw.js with a precache list of every game file and a content hash.
 // Run after changing any file:  node tools/gen-sw.mjs
-import { readdirSync, readFileSync, writeFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync, statSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 
 const root = new URL('..', import.meta.url).pathname;
 const files = ['index.html', 'style.css', 'manifest.webmanifest'];
 const walk = (dir) => {
+  if (!existsSync(join(root, dir))) return;
   for (const f of readdirSync(join(root, dir))) {
     const rel = join(dir, f);
     if (statSync(join(root, rel)).isDirectory()) walk(rel);
@@ -14,6 +15,7 @@ const walk = (dir) => {
   }
 };
 walk('src');
+walk('data');
 walk('icons');
 const h = createHash('sha1');
 for (const f of files) h.update(f).update(readFileSync(join(root, f)));
@@ -39,6 +41,7 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
   if (url.origin !== location.origin) return;
+  if (url.pathname.includes('/api/')) return; // cloud saves always go to the server
   e.respondWith(
     caches.match(e.request, { ignoreSearch: true }).then((hit) => hit || fetch(e.request).then((res) => {
       if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
