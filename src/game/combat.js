@@ -26,7 +26,7 @@ export function inLine(px, py, pr, x, y, ang, len, w) {
 export function hitEnemy(S, e, mult, o = {}) {
   if (e.dead || e.spawnT > 0) return 0;
   const p = S.player, st = p.stats;
-  const crit = !o.noCrit && Math.random() < st.crit;
+  const crit = o.forceCrit || (!o.noCrit && Math.random() < st.crit);
   let dmg = (o.flat ?? st.atk * mult) * rand(0.9, 1.1);
   if (crit) dmg *= st.critDmg;
   if (o.ult && st.legs.has('emberCrown')) dmg *= 1.35;
@@ -53,7 +53,8 @@ export function hitEnemy(S, e, mult, o = {}) {
   let gain = 2.2 * st.emberGain;
   if (crit && st.legs.has('starHeart')) gain *= 2;
   if (!o.ult) p.ember = Math.min(100, p.ember + gain);
-  if (st.leech > 0) p.hp = Math.min(st.maxHp, p.hp + dmg * st.leech);
+  const leech = st.leech + (o.basic && p.hero.passive ? p.hero.passive.leech : 0);
+  if (leech > 0) p.hp = Math.min(st.maxHp, p.hp + dmg * leech);
   if (e.hp <= 0) S.killEnemy(e);
   return dmg;
 }

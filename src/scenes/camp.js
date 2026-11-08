@@ -377,7 +377,8 @@ export class CampScene {
     const f = this.frame(ctx, `Skills   (${this.hs.sp} point${this.hs.sp === 1 ? '' : 's'} to spend)`);
     const hs = this.hs, hero = this.hero;
     const rows = [...hero.skills.map((s, i) => ({ s, i })), { s: hero.ult, i: 3 }];
-    const rh = Math.floor((f.h - 26) / 4);
+    const rh = Math.floor((f.h - (hero.passive ? 36 : 26)) / 4);
+    if (hero.passive) drawText(ctx, `Passive: ${hero.passive.name}. ${hero.passive.desc}`, f.x + 10, f.y + f.h - 12, { color: hero.color });
     rows.forEach(({ s, i }, k) => {
       const y = f.y + 20 + k * rh;
       const x = f.x + 8, w = f.w - 16;
@@ -386,16 +387,18 @@ export class CampScene {
       panel(ctx, x, y, w, rh - 3, { fill: unlocked ? '#1a1520' : '#110e13' });
       drawText(ctx, s.name, x + 6, y + 4, { color: unlocked ? hero.color : COL.faint });
       if (i === 3) drawText(ctx, 'ULTIMATE (fills with Ember)', x + 10 + measure(s.name), y + 4, { color: '#ff9a3c' });
+      let descW = w - 110;
       if (unlocked) {
         for (let r = 0; r < 5; r++) { ctx.fillStyle = r < rank ? '#ffd24a' : '#3a3040'; ctx.fillRect(x + w - 70 + r * 8, y + 5, 6, 4); }
         const pw = i === 3 ? { dmg: s.dmg * (1 + 0.15 * (rank - 1)), cd: 0 } : skillPower(s, rank);
         const info = (pw.dmg ? `${Math.round(pw.dmg * 100)}% dmg` : '') + (pw.cd ? `  ${pw.cd.toFixed(1)}s cooldown` : '');
         drawText(ctx, info, x + w - 74, y + 15, { align: 'right', color: COL.dim });
+        descW = w - 74 - measure(info) - 18;
         if (rank < 5 && button(ctx, x + w - 26, y + 13, 20, 14, '+', { disabled: hs.sp <= 0, color: '#6ad46a' })) {
           hs.sp--; hs.ranks[i]++; G.audio.play('level'); writeSave(G.save);
         }
       } else drawText(ctx, `Unlocks at level ${s.unlock}`, x + w - 6, y + 4, { align: 'right', color: COL.faint });
-      wrap(s.desc, w - 110).slice(0, 2).forEach((ln, j) => drawText(ctx, ln, x + 6, y + 15 + j * 10, { color: unlocked ? COL.text : COL.faint }));
+      wrap(s.desc, descW).slice(0, 2).forEach((ln, j) => drawText(ctx, ln, x + 6, y + 14 + j * 10, { color: unlocked ? COL.text : COL.faint }));
     });
   }
 

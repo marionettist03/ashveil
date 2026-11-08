@@ -12,7 +12,7 @@ Each hero plays differently and has their own story through the chapter.
 
 | Hero | Weapon | Style |
 |---|---|---|
-| **Kes Vane**, the Ashen Kestrel | Twin blades | Fastest hero. Rapid combos and dashes through enemies. |
+| **Kes Vane**, the Ashen Kestrel | Twin blades | Fastest hero. Shreds single targets, heals by striking, least health. |
 | **Brannoc**, the Iron Oath | Greathammer | Toughest hero. Slow, huge swings that stun. |
 | **Odalys Fen**, the Ash-Witch | Ember staff | Fire magic from range, big area damage, fragile. |
 | **Hale Morrow**, Warden of the Ashwood | Longbow | Agile archer with traps and volleys. |

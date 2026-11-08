@@ -170,7 +170,7 @@ export class Player {
       const slash = (mult, flip) => {
         const dir = (this.combo + flip) % 2 ? 1 : -1;
         S.fx.add({ kind: 'slash', x: this.x, y: this.y - 7, r: 21, a0: aim - 1.2 * dir, a1: aim + 1.2 * dir, col: '#35b8a8', col2: '#ffffff', dur: 0.16 });
-        this.meleeHit(26, 2.6, mult, { kb: 3 });
+        this.meleeHit(26, 2.6, mult, { kb: 3, basic: true });
         S.audio.play('swing', { gap: 0.02 });
       };
       if (step < 2) { slash(1, 0); this.atkCd = st.atkRate; }
@@ -243,10 +243,31 @@ export class Player {
         S.audio.play('dash'); S.audio.play('swing');
         break;
       }
-      case 'fan':
-        for (let k = -2; k <= 2; k++) S.addProj({ x: this.x, y: this.y - 7, ang: aim + k * 0.22, speed: 290, r: 2, owner: 'p', mult: m, life: 0.6, kind: 'knife', pierce: 1 });
-        this.atkAnim = 0.15; S.audio.play('shoot'); S.audio.play('swing');
+      case 'talon': {
+        const t = S.findTarget(this.x, this.y, 120, false);
+        const strike = () => {
+          const a = this.aim;
+          let hit = false;
+          for (const e of S.enemies) {
+            if (e.dead || e.spawnT > 0) continue;
+            if (inArc(e.x, e.y - 4, e.r, this.x, this.y - 4, 30, a, 1.6)) { hitEnemy(S, e, m, { forceCrit: true, kb: 6 }); hit = true; break; }
+          }
+          S.fx.add({ kind: 'slash', x: this.x, y: this.y - 7, r: 22, a0: a - 1.3, a1: a + 1.3, col: '#35b8a8', col2: '#ffffff', dur: 0.2 });
+          S.fx.add({ kind: 'slash', x: this.x, y: this.y - 7, r: 18, a0: a + 1.3, a1: a - 1.3, col: '#ffd24a', col2: '#ffffff', dur: 0.22 });
+          if (hit) { S.hitstop = Math.max(S.hitstop, 0.09); S.fx.shake(3); }
+          S.audio.play('crit');
+        };
+        this.iframes = Math.max(this.iframes, 0.2);
+        if (t) {
+          const d = dist(this.x, this.y, t.x, t.y) - t.r - 8;
+          this.aim = angleTo(this.x, this.y, t.x, t.y);
+          if (d > 4) this.startDash(this.aim, 620, d / 620, null, strike);
+          else strike();
+        } else this.startDash(aim, 520, 0.08, null, strike);
+        this.atkAnim = 0.2;
+        S.audio.play('dash');
         break;
+      }
       case 'whirl':
         this.whirl = 1.4; this.whirlTick = 0; this.whirlMult = m;
         S.fx.add({ kind: 'spin', x: this.x, y: this.y, r: 24, col: '#35b8a8', dur: 1.4, follow: this });
@@ -345,7 +366,7 @@ export class Player {
       const list = S.enemies.filter((e) => !e.dead && e.spawnT <= 0 && dist(e.x, e.y, this.x, this.y) < 170)
         .sort((a, b) => dist(a.x, a.y, this.x, this.y) - dist(b.x, b.y, this.x, this.y)).slice(0, 8);
       if (!list.length) { S.fx.float(this.x, this.y - 26, 'No targets', '#958a9c'); return; }
-      this.ultSeq = { list, i: 0, t: 0, mult: m };
+      this.ultSeq = { list, i: 0, n: 8, t: 0, mult: m };
       S.freeze = true;
     } else if (id === 'fall') {
       for (let k = 0; k < 3; k++) {
@@ -392,14 +413,15 @@ export class Player {
     this.iframes = 0.3;
     q.t -= dt;
     if (q.t > 0) return;
-    if (q.i >= q.list.length) {
+    const alive = q.list.filter((x) => !x.dead);
+    if (q.i >= q.n || !alive.length) {
       this.ultSeq = null; S.freeze = false;
       S.fx.add({ kind: 'ring', x: this.x, y: this.y - 6, r0: 4, r1: 40, col: '#35b8a8', col2: '#ffffff', dur: 0.3 });
       return;
     }
-    const e = q.list[q.i++];
-    q.t = 0.1;
-    if (e.dead) { q.t = 0; return; }
+    const e = alive[q.i % alive.length];
+    q.i++;
+    q.t = 0.09;
     const a = rand(0, TAU);
     S.afterimages.push({ x: this.x, y: this.y, face: this.face, t: 0, spr: this.art.atk[0] });
     this.x = e.x + Math.cos(a) * (e.r + 8); this.y = e.y + Math.sin(a) * (e.r + 8);

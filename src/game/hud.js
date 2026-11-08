@@ -39,6 +39,7 @@ function glyph(ctx, id, x, y, col) {
   switch (id) {
     case 'feather': px(-6, 0, 9, 1); px(1, -3, 1, 1); px(2, -2, 1, 1); px(3, -1, 1, 3); px(2, 2, 1, 1); px(1, 3, 1, 1); px(-6, -3, 3, 1, '#ffffff'); px(-6, 3, 3, 1, '#ffffff'); break;
     case 'fan': for (let i = -2; i <= 2; i++) { const a = -Math.PI / 2 + i * 0.35; for (let r = 2; r < 8; r++) px(Math.round(Math.cos(a) * r), Math.round(Math.sin(a) * r) + 3); } break;
+    case 'talon': for (let i = 0; i < 9; i++) { px(-5 + i, -5 + i); px(-4 + i, -5 + i, 1, 1, '#ffffff'); } px(3, 3, 3, 3, '#ffd24a'); px(-6, 2, 3, 1); px(-6, 4, 2, 1); break;
     case 'whirl': for (let a = 0; a < 5.5; a += 0.3) px(Math.round(Math.cos(a) * (2 + a)), Math.round(Math.sin(a) * (2 + a))); break;
     case 'hundred': px(-6, -6, 1, 1); for (let i = 0; i < 12; i++) { px(-6 + i, -6 + i); px(6 - i, -6 + i, 1, 1, '#ffffff'); } break;
     case 'oathbreaker': px(-1, -7, 3, 7); px(-3, -7, 7, 3); px(-6, 3, 13, 1); px(-4, 1, 1, 2); px(4, 1, 1, 2); break;
