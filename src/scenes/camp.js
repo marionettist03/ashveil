@@ -144,15 +144,15 @@ export class CampScene {
     if (this.sparks) this.sparks = this.sparks.filter((s) => s.t < 1.2);
     // hero and Maud
     const art = ART.heroes[this.hs.id];
-    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(fx - 52, gy + 1, 24, 3);
-    drawSprite(ctx, art.idle[Math.floor(this.t * 2) % 2], fx - 40, gy + 2, { scale: 2 });
-    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(fx - 92, gy + 1, 22, 3);
-    drawSprite(ctx, ART.ansel.idle[Math.floor(this.t * 1.2) % 2], fx - 80, gy + 2, { scale: 2 });
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(fx - 58, gy + 1, 28, 3);
+    drawSprite(ctx, art.idle[Math.floor(this.t * 2) % 2], fx - 44, gy + 2, { scale: 2 });
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(fx - 114, gy + 1, 28, 3);
+    drawSprite(ctx, ART.ansel.idle[Math.floor(this.t * 1.2) % 2], fx - 100, gy + 2, { scale: 2 });
     const mx = fx + 48;
     // anvil
     ctx.fillStyle = '#2a2830'; ctx.fillRect(mx + 22, gy - 12, 18, 5); ctx.fillRect(mx + 27, gy - 7, 8, 8); ctx.fillRect(mx + 24, gy + 1, 14, 2);
     ctx.fillStyle = '#4a4852'; ctx.fillRect(mx + 22, gy - 12, 18, 1);
-    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(mx - 12, gy + 1, 24, 3);
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(mx - 14, gy + 1, 28, 3);
     drawSprite(ctx, ART.maud.idle[Math.floor(this.t * 1.5) % 2], mx, gy + 2, { scale: 2, flip: true });
   }
 
@@ -253,7 +253,13 @@ export class CampScene {
         rect(ctx, x + 2, y + 2, cw - 4, 22, th.wallTop);
         const prop = { outskirts: 'grave', ashwood: 'tree', crypt: 'coffin', nave: 'bell' }[s.theme];
         drawSprite(ctx, ART.props[prop], x + cw / 2, y + 46);
-        if (s.arenas.some((a) => a.boss)) drawSprite(ctx, ART.enemies[s.arenas.find((a) => a.boss).boss].idle[0], x + cw - 18, y + 48);
+        if (s.arenas.some((a) => a.boss)) {
+          // boss thumbnail, kept inside the card's picture strip
+          const bs = ART.enemies[s.arenas.find((a) => a.boss).boss].idle[0];
+          ctx.save(); ctx.beginPath(); ctx.rect(x + 2, y + 2, cw - 4, 49); ctx.clip();
+          drawSprite(ctx, bs, x + cw - 4 - bs.w / 2, y + 50);
+          ctx.restore();
+        }
       } else drawSprite(ctx, ART.icons.lock, x + cw / 2, y + 40);
       panel(ctx, x + 1, y + 52, cw - 2, ch - 53, { fill: '#120e15', edge: '#120e15', hi: false });
       drawText(ctx, s.id, x + 5, y + 55, { color: open ? COL.bronze : COL.faint });

@@ -436,7 +436,7 @@ export function drawEnemy(S, ctx, e) {
   // boss weapon (behind)
   if (e.type === 'warden') {
     let a = e.swingT > 0 ? (e.face * (1.8 - e.swingT * 10)) : e.state === 'windup' && e.pattern === 'sweep' ? -2.2 * e.face : e.state === 'charging' || (e.state === 'windup' && e.pattern === 'thrust') ? e.aim + Math.PI / 2 : 0.25 * e.face;
-    drawRot(ctx, ART.weapons.halberd, x + e.face * 14, y - 12, a, 18);
+    drawRot(ctx, ART.weapons.halberd, x + e.face * 16, y - 15, a, 25);
   }
   drawSprite(ctx, spr, x + shake, y, { flip: e.face < 0, tint, outline: warn ? '#ff3a2a' : e.elite ? e.elite.col : e.vulnerable > 0 ? '#ffd24a' : null });
   if (e.type === 'wickling') S.map.flame(ctx, x + (e.face < 0 ? 0 : 0), y - art.h - 1 + (e.state === 'windup' ? -1 : 0), G.time, e.state === 'windup' ? 1 : 0.6);

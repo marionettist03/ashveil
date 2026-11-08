@@ -64,11 +64,12 @@ export class Dialogue {
       const ps = portraitSprite(who);
       panel(ctx, bx + 5, by + 5, 56, 56, { fill: '#1c1621', edge: '#3a3040' });
       if (ps) {
-        const sc = Math.max(1, Math.floor(Math.min(50 / ps.w, 50 / ps.h)));
+        const bust = ps.h <= 34; // people: head and shoulders at 2x; big creatures: whole body
+        const sc = bust ? 2 : Math.max(1, Math.floor(Math.min(50 / ps.w, 50 / ps.h)));
         const flip = who === 'stag' || who === 'warden';
         ctx.save();
         ctx.beginPath(); ctx.rect(bx + 6, by + 6, 54, 54); ctx.clip();
-        drawSprite(ctx, ps, bx + 33, by + 58, { scale: sc, flip });
+        drawSprite(ctx, ps, bx + 33, bust ? by + 4 + ps.h * 2 : by + 58, { scale: sc, flip });
         ctx.restore();
       } else {
         drawText(ctx, '?', bx + 33, by + 26, { align: 'center', color: sp.col, scale: 2 });

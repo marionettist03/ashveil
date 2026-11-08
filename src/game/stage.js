@@ -401,6 +401,7 @@ export class StageScene {
   pause() {
     if (this.state !== 'play') return;
     this.state = 'paused';
+    this.justPaused = true; // the key press that paused must not also resume
     this.audio.play('ui');
   }
 
@@ -1146,7 +1147,8 @@ export class StageScene {
     if (button(ctx, x + 12, y + 49, bw, 18, 'Settings & controls')) this.settings = new SettingsPanel(() => { this.settings = null; }, { inStage: true });
     if (button(ctx, x + 12, y + 70, bw, 18, 'Return to Greyhollow (keep loot)', { color: '#e0a090' })) this.leave('camp');
     drawText(ctx, 'Progress saves automatically.', G.W / 2, y + 95, { align: 'center', color: COL.faint });
-    if (G.input.keyPressed('Escape', 'KeyP')) this.state = 'play';
+    if (this.justPaused) this.justPaused = false;
+    else if (G.input.keyPressed('Escape') || actionPressed('pause')) this.state = 'play';
   }
 
   drawDead(ctx) {
@@ -1163,7 +1165,7 @@ export class StageScene {
   drawResults(ctx) {
     shade(ctx, 0.72);
     const s = this.stats, r = this.results;
-    const w = 228, h = 168, x = Math.round(G.W / 2 - w / 2), y = Math.round(G.H / 2 - h / 2);
+    const w = 252, h = 180, x = Math.round(G.W / 2 - w / 2), y = Math.round(G.H / 2 - h / 2);
     panel(ctx, x, y, w, h, { edge: COL.bronze });
     title(ctx, 'Zone Cleared', G.W / 2, y + 8, '#ffd24a');
     for (let i = 0; i < 3; i++) drawSprite(ctx, i < r.stars ? ART.icons.star : ART.icons.starOff, G.W / 2 - 18 + i * 18, y + 42, { scale: 1 });
@@ -1180,7 +1182,7 @@ export class StageScene {
       drawText(ctx, String(v), x + w - 14, y + 50 + i * 12, { align: 'right', color: COL.text });
     });
     drawText(ctx, 'Stars: clear / no falls / beat par time', G.W / 2, y + h - 48, { align: 'center', color: COL.faint });
-    drawText(ctx, 'Loot left on the ground is picked up when you leave.', G.W / 2, y + h - 38, { align: 'center', color: COL.faint });
+    drawText(ctx, 'Loot on the ground is collected when you leave.', G.W / 2, y + h - 38, { align: 'center', color: COL.faint });
     const bw = (w - 32) / 2;
     // never force the player out: they can always stay and pick up what is left
     if (button(ctx, x + 12, y + h - 26, bw, 18, 'Keep exploring', { color: '#ffe0a0' }) || G.input.keyPressed('Enter', 'Escape')) this.state = 'play';

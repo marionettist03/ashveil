@@ -151,9 +151,9 @@ export function drawControls(S, ctx) {
     drawText(ctx, t, b.x, y + 1, { align: 'center', color: '#e8dcc0' });
   };
   if (touch) drawJoystick(S, ctx, Lo);
-  else if (S.time < 12 && !S.dialogue) {
+  else if (S.time > 2.8 && S.time < 14 && !S.dialogue) { // after the zone-name banner fades
     const m = ['up', 'left', 'down', 'right'].map((a) => keyName(B[a][0])).join('');
-    drawText(ctx, `${m.length === 4 ? m : 'Arrows'}: move   Hold mouse: attack   Right-click: roll`, G.W / 2, 36, { align: 'center', color: COL.faint, outline: '#000', alpha: Math.min(1, (12 - S.time) / 2) });
+    drawText(ctx, `${m.length === 4 ? m : 'Arrows'}: move   Hold mouse: attack   Right-click: roll`, G.W / 2, 36, { align: 'center', color: COL.faint, outline: '#000', alpha: Math.min(1, (14 - S.time) / 2, (S.time - 2.8) * 2) });
   }
 
   // attack

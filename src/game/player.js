@@ -22,7 +22,7 @@ export class Player {
     this.hero = HEROES[hs.id];
     this.art = ART.heroes[hs.id];
     this.refreshStats(true);
-    this.x = 0; this.y = 0; this.r = 5; this.h = 20;
+    this.x = 0; this.y = 0; this.r = 5; this.h = 28;
     this.face = 1; this.aim = 0;
     this.kbx = 0; this.kby = 0;
     this.atkCd = 0; this.combo = 0; this.comboT = 0; this.lock = 0; this.atkAnim = 0;
@@ -507,8 +507,8 @@ export class Player {
     const z = this.z || 0;
     // shadow
     ctx.fillStyle = 'rgba(0,0,0,0.4)';
-    ctx.fillRect(Math.round(this.x - 6), Math.round(this.y - 1), 12, 3);
-    ctx.fillRect(Math.round(this.x - 4), Math.round(this.y - 2), 8, 5);
+    ctx.fillRect(Math.round(this.x - 8), Math.round(this.y - 1), 16, 3);
+    ctx.fillRect(Math.round(this.x - 5), Math.round(this.y - 2), 10, 5);
     if (this.dead) {
       const spr = this.art.idle[0];
       ctx.save();
@@ -559,21 +559,21 @@ export class Player {
       } else a = -0.55 * f;
       const isBehind = !this.swing && true;
       if (behind !== isBehind) return;
-      drawRot(ctx, ART.weapons.maul, hx, hy + 2, a, 13);
+      drawRot(ctx, ART.weapons.maul, hx, hy + 2, a, 17);
     } else if (id === 'odalys') {
       if (!behind) return;
       const a = this.atkAnim > 0 ? Math.cos(this.aim) * 0.5 : 0.15 * f;
-      drawRot(ctx, ART.weapons.staff, hx, hy + 5, a, 16);
-      const tx = hx + Math.sin(a) * 14, ty = hy + 5 - Math.cos(a) * 14;
+      drawRot(ctx, ART.weapons.staff, hx, hy + 6, a, 22);
+      const tx = hx + Math.sin(a) * 19, ty = hy + 6 - Math.cos(a) * 19;
       this.S.lightAt(tx, ty, 26);
     } else if (id === 'hale') {
       if (behind) return;
       const spr = ART.weapons.bow;
       if (this.atkAnim > 0 || this.target) drawRot(ctx, spr, hx - f * 2 + Math.cos(this.aim) * 3, hy - 1 + Math.sin(this.aim) * 3 + spr.h / 2, this.aim, spr.h / 2);
-      else drawSprite(ctx, spr, hx + f * 1, hy + 7, { flip: f < 0 });
+      else drawSprite(ctx, spr, hx + f * 1, hy + 9, { flip: f < 0 });
     } else if (id === 'kes') {
       if (behind || this.atkAnim > 0 || this.whirl > 0 || this.dash) return;
-      drawRot(ctx, ART.weapons.dagger, hx + f, hy + 4, 0.5 * f, 5);
+      drawRot(ctx, ART.weapons.dagger, hx + f, hy + 5, 0.5 * f, 7);
     }
   }
 }
